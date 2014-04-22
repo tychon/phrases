@@ -8,6 +8,12 @@ import System.IO
 import System.Exit
 import System.IO.Error( isEOFError )
 import System.Console.GetOpt
+import Data.ByteString.Char8( pack )
+import qualified Data.ByteString as BS
+import Data.Bits
+
+import Crypto.PBKDF( sha512PBKDF2 )
+import Crypto.Random.DRBG
 
 main = do putStrLn "This is your passphrase storage manager."
           -- parse command line arguments
@@ -15,11 +21,13 @@ main = do putStrLn "This is your passphrase storage manager."
           case getOpt RequireOrder options args of
             (flags, [], []) -> do
                 -- show version and exit
-                when (elem Version flags) $ do
+                when (Version `elem` flags) $ do
                     putStrLn "Version [unimplemented]\n" -- Unimplemented
                     putStrLn $ usageInfo header options
                     exitSuccess
                 -- TODO ask, decrypt and load data file
+                
+                openStorage ".passphrases"
                 -- prompt
                 mainprompt
             (_, nonOpts, []) -> error $ "unrecognized arguments: " ++ unwords nonOpts
@@ -48,14 +56,25 @@ getPromptAns = do hFlush stdout
                                   else error ("IOError: "++(show e))
                     Right inp -> return inp
 
---openStorage file = do
- -- putStr "Passphrase: "
---  hFlush stdout
---  input <- try (getLine)
+openStorage file = do
+  -- ask
+  putStr "Passphrase: "
+  hSetEcho stdin False
+  passphrase <- getPromptAns
+  hSetEcho stdin True
+  putStrLn ""
+  -- decrypt
+  let seed = pack $ sha512PBKDF2 passphrase "salt" 1000 64
+  case newGen seed :: Either GenError HashDRBG of
+    Left e -> error $ show e
+    Right gen -> do encrypteddata <- BS.readFile file
+                    let datalen = BS.length encrypteddata
+                        (cipher, gen') = throwLeft $ genBytes datalen gen
+                        decrypted = BS.pack $ BS.zipWith xor encrypteddata cipher
+                    putStrLn $ show decrypted -- TODO parse decrypted file
 
 mainprompt = do
   putStr "> "
-  hFlush stdout
   input <- getPromptAns
   putStrLn $ show input
   mainprompt
