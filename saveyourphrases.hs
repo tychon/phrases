@@ -94,7 +94,7 @@ openStorage file = do
   -- ask
   putStr "(loading) Passphrase: "
   hSetEcho stdin False
-  mpassphrase <- getPromptAns -- TODO test
+  mpassphrase <- getPromptAns
   hSetEcho stdin True
   if mpassphrase == Nothing
       then exitSuccess
@@ -150,17 +150,46 @@ mainprompt path storage = do
     Nothing -> do putStrLn "Try \"quit\""
                   mainprompt path storage
     Just inputstr -> do let input = words inputstr
-                        prompthandle path storage input
-                        mainprompt path storage
+                        storage' <- prompthandle path storage input
+                        mainprompt path storage'
 
-prompthandle :: String -> Storage -> [String] -> IO ()
-prompthandle path storage [] = return ()
-prompthandle path storage ("quit":[]) = quit path storage
+prompthandle :: String -> Storage -> [String] -> IO Storage
+prompthandle path storage [] = return storage
+
+prompthandle path storage@(Storage entries _) ("change-lock":[]) = do
+  putStr "   New passphrase: "
+  hSetEcho stdin False
+  mpassphrase <- getPromptAns
+  hSetEcho stdin True
+  case mpassphrase of
+    Nothing -> return storage
+    Just passphrase -> do
+      putStr "\nRepeat passphrase: "
+      hSetEcho stdin False
+      mpassphrase' <- getPromptAns
+      hSetEcho stdin True
+      case mpassphrase' of
+        Nothing -> return storage
+        Just passphrase' -> do
+          putStrLn ""
+          if passphrase /= passphrase'
+              then do putStrLn "ERROR: given passphrases do not match"
+                      return storage
+              else do let (newlockhash, _, _) = getCipher passphrase 0
+                      putStrLn "New hash saved."
+                      return (Storage entries newlockhash)
+
+prompthandle path storage ("quit":[]) = do
+  quit path storage
+  return storage -- if quitting failed :-P
 prompthandle path storage ("QUIT!":[]) = do
   putStrLn "(discarding changes)"
   exitSuccess
-prompthandle path storage other =
+prompthandle path storage other = do
   putStrLn $ "unknown command: "++(unwords other)
+  return storage
+
+-----------
 
 quit path storage = do
   saveres <- save path storage
