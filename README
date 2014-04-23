@@ -1,4 +1,8 @@
 
+## TODO
+
+* salt
+
 ## Requires
 
 * pbkdf from http://hackage.haskell.org/package/pbkdf

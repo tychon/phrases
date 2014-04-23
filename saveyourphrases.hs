@@ -54,9 +54,9 @@ options = [
 
 header = "Usage: main [OPTION...]"
 
-findInputPath [] = "~/.passphrases"
+findInputPath [] = "passphrases"
 findInputPath (Input path:flags) = path
-findInputPath (Version:flags) = findInputPath flags
+findInputPath (_:flags) = findInputPath flags
 
 -----------
 
@@ -77,17 +77,25 @@ getPromptAns = do hFlush stdout
 
 -- | Hashes your passphrase with PBKDF2 and generates
 --   deterministric randomness from it.
-getCipher ::
+getCipherAndHash ::
      String -- the passphrase as string
   -> ByteLength -- the length of the cipher to create
   -> (String, BS.ByteString, HashDRBG)
-getCipher passphrase len = do
-  let lockhash = sha512PBKDF2 passphrase "salt" 1000 64
-      seed = pack $ lockhash
+getCipherAndHash passphrase len = do
+  let lockhash = sha512PBKDF2 passphrase "salt" 150000 64
+      (cipher, gen) = getCipher lockhash len
+  (lockhash, cipher, gen)
+
+getCipher ::
+     String -- the PBKDF2 hash of your passphrase
+  -> ByteLength -- the length of the cipher to create
+  -> (BS.ByteString, HashDRBG) -- the randomness and the generator
+getCipher lockhash len = do
+  let seed = pack $ lockhash
   case newGen seed :: Either GenError HashDRBG of
     Left e -> error $ show e
     Right gen -> do let (cipher, gen') = throwLeft $ genBytes len gen
-                    (lockhash, cipher, gen')
+                    (cipher, gen')
 
 openStorage :: String -> IO Storage
 openStorage file = do
@@ -104,7 +112,7 @@ openStorage file = do
   -- open file
   encrypteddata <- BS.readFile file
   -- decrypt
-  let (lockhash, cipherbytes, _) = getCipher passphrase $ BS.length encrypteddata
+  let (lockhash, cipherbytes, _) = getCipherAndHash passphrase $ BS.length encrypteddata
       decrypted = BS.pack $ BS.zipWith xor encrypteddata cipherbytes
       -- verify
       (verifier1, decrypted') = BS.splitAt 64 decrypted
@@ -118,28 +126,15 @@ openStorage file = do
               putStrLn $ "Number of keys: "++(show $ length entries) -- forcing evaluation
               return (Storage entries lockhash)
 
-save :: String -> Storage -> IO Bool
+save :: String -> Storage -> IO ()
 save path storage@(Storage { entries=_, lockhash=lockhash }) = do
-  -- ask
-  putStr "(saving) Passphrase: "
-  hSetEcho stdin False
-  mpassphrase <- getPromptAns
-  hSetEcho stdin True
-  case mpassphrase of
-    Nothing -> return False
-    Just passphrase -> do
-      putStrLn ""
-      -- encrypt
-      let plaintext = show storage
-          (newlockhash, cipherbytes, gen) = getCipher passphrase $ (length plaintext) + 128
-      if newlockhash /= lockhash
-          then do putStrLn "Wrong passphrase. Try \"change-lock\""
-                  return False
-          else do let (verifier, _) = throwLeft $ genBytes 64 gen
-                      fulltext = BS.append verifier $ BS.append verifier $ pack plaintext
-                      encrypted = BS.pack $ BS.zipWith xor fulltext cipherbytes
-                  BS.writeFile path encrypted
-                  return True
+  -- encrypt
+  let plaintext = show storage
+      (cipherbytes, gen) = getCipher lockhash $ (length plaintext) + 128
+      (verifier, _) = throwLeft $ genBytes 64 gen -- get verifier
+      fulltext = BS.append verifier $ BS.append verifier $ pack plaintext
+      encrypted = BS.pack $ BS.zipWith xor fulltext cipherbytes
+  BS.writeFile path encrypted
 
 -----------
 
@@ -175,16 +170,12 @@ prompthandle path storage@(Storage entries _) ("change-lock":[]) = do
           if passphrase /= passphrase'
               then do putStrLn "ERROR: given passphrases do not match"
                       return storage
-              else do let (newlockhash, _, _) = getCipher passphrase 0
+              else do let (newlockhash, _, _) = getCipherAndHash passphrase 0
                       putStrLn "New hash saved."
                       return (Storage entries newlockhash)
 
 prompthandle path storage ("quit":[]) = do
   quit path storage
-  return storage -- if quitting failed :-P
-prompthandle path storage ("QUIT!":[]) = do
-  putStrLn "(discarding changes)"
-  exitSuccess
 prompthandle path storage other = do
   putStrLn $ "unknown command: "++(unwords other)
   return storage
@@ -192,8 +183,6 @@ prompthandle path storage other = do
 -----------
 
 quit path storage = do
-  saveres <- save path storage
-  if saveres
-      then exitSuccess
-      else putStrLn "Try \"QUIT!\" to discard changes."
+  save path storage
+  exitSuccess
 
