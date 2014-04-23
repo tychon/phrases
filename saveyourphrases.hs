@@ -80,13 +80,14 @@ getPromptAns = do hFlush stdout
 getCipher ::
      String -- the passphrase as string
   -> ByteLength -- the length of the cipher to create
-  -> (BS.ByteString, HashDRBG)
+  -> (String, BS.ByteString, HashDRBG)
 getCipher passphrase len = do
-  let seed = pack $ sha512PBKDF2 passphrase "salt" 1000 64
+  let lockhash = sha512PBKDF2 passphrase "salt" 1000 64
+      seed = pack $ lockhash
   case newGen seed :: Either GenError HashDRBG of
     Left e -> error $ show e
     Right gen -> do let (cipher, gen') = throwLeft $ genBytes len gen
-                    (cipher, gen')
+                    (lockhash, cipher, gen')
 
 openStorage :: String -> IO Storage
 openStorage file = do
@@ -103,7 +104,7 @@ openStorage file = do
   -- open file
   encrypteddata <- BS.readFile file
   -- decrypt
-  let (cipherbytes, _) = getCipher passphrase $ BS.length encrypteddata
+  let (lockhash, cipherbytes, _) = getCipher passphrase $ BS.length encrypteddata
       decrypted = BS.pack $ BS.zipWith xor encrypteddata cipherbytes
       -- verify
       (verifier1, decrypted') = BS.splitAt 64 decrypted
@@ -115,10 +116,10 @@ openStorage file = do
               let storage = read (map BSInternal.w2c $ BS.unpack plaintext) :: Storage -- read
                   Storage entries _ = storage
               putStrLn $ "Number of keys: "++(show $ length entries) -- forcing evaluation
-              return storage
+              return (Storage entries lockhash)
 
 save :: String -> Storage -> IO Bool
-save path storage = do
+save path storage@(Storage { entries=_, lockhash=lockhash }) = do
   -- ask
   putStr "(saving) Passphrase: "
   hSetEcho stdin False
@@ -130,12 +131,15 @@ save path storage = do
       putStrLn ""
       -- encrypt
       let plaintext = show storage
-          (cipherbytes, gen) = getCipher passphrase $ (length plaintext) + 128
-          (verifier, _) = throwLeft $ genBytes 64 gen
-          fulltext = BS.append verifier $ BS.append verifier $ pack plaintext
-          encrypted = BS.pack $ BS.zipWith xor fulltext cipherbytes
-      BS.writeFile path encrypted
-      return True
+          (newlockhash, cipherbytes, gen) = getCipher passphrase $ (length plaintext) + 128
+      if newlockhash /= lockhash
+          then do putStrLn "Wrong passphrase. Try \"change-lock\""
+                  return False
+          else do let (verifier, _) = throwLeft $ genBytes 64 gen
+                      fulltext = BS.append verifier $ BS.append verifier $ pack plaintext
+                      encrypted = BS.pack $ BS.zipWith xor fulltext cipherbytes
+                  BS.writeFile path encrypted
+                  return True
 
 -----------
 
