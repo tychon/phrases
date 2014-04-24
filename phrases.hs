@@ -9,6 +9,7 @@ import System.Exit
 import System.IO
 import System.IO.Error( isEOFError )
 import System.Console.GetOpt
+import System.Console.ANSI( clearLine, setCursorColumn )
 -- general
 import Data.ByteString.Char8( pack )
 import qualified Data.ByteString.Internal as BSInternal (c2w, w2c)
@@ -33,7 +34,7 @@ main = do putStrLn "This is your passphrase storage manager."
                 let path = findInputPath flags
                 putStrLn $ "Storage File: "++path
                 if (InitStorage `elem` flags)
-                    then do let storage = Storage { entries = [], lockhash = "" }
+                    then do let storage = Storage { entries = [], lockhash = "", salt="" } -- TODO sane?
                             putStrLn "Initializing Storage."
                             mainprompt path storage
                     else do storage <- openStorage path
@@ -58,13 +59,6 @@ findInputPath [] = "passphrases"
 findInputPath (Input path:flags) = path
 findInputPath (_:flags) = findInputPath flags
 
------------
-
-data Storage = Storage { entries :: [SEntry], lockhash :: String }
-       deriving (Show, Read)
-data SEntry = SEntry { domain, username, comment, phrase :: String }
-       deriving (Show, Read)
-
 getPromptAns :: IO (Maybe String)
 getPromptAns = do hFlush stdout
                   input <- try getLine
@@ -75,66 +69,106 @@ getPromptAns = do hFlush stdout
                                   else error ("IOError: "++(show e))
                     Right inp -> return (Just inp)
 
--- | Hashes your passphrase with PBKDF2 and generates
---   deterministric randomness from it.
-getCipherAndHash ::
-     String -- the passphrase as string
-  -> ByteLength -- the length of the cipher to create
-  -> (String, BS.ByteString, HashDRBG)
-getCipherAndHash passphrase len = do
-  let lockhash = sha512PBKDF2 passphrase "salt" 150000 64
-      (cipher, gen) = getCipher lockhash len
-  (lockhash, cipher, gen)
+-----------
+-- storage and its functions
 
-getCipher ::
-     String -- the PBKDF2 hash of your passphrase
-  -> ByteLength -- the length of the cipher to create
-  -> (BS.ByteString, HashDRBG) -- the randomness and the generator
-getCipher lockhash len = do
-  let seed = pack $ lockhash
-  case newGen seed :: Either GenError HashDRBG of
-    Left e -> error $ show e
-    Right gen -> do let (cipher, gen') = throwLeft $ genBytes len gen
-                    (cipher, gen')
+data Storage = Storage { entries :: [SEntry], lockhash :: String, salt :: String }
+       deriving (Show, Read)
+data SEntry = SEntry { name, comment, phrase :: String }
+       deriving (Show, Read)
+
+-- set passphrase and salt
+
+setPassphrase :: Storage -> String -> IO Storage
+setPassphrase (Storage entries oldlockhash oldsalt) newpassphrase = do
+  gen <- newGenIO :: IO HashDRBG
+  let (newsaltbs, _) = throwLeft $ genBytes salt_length gen
+      newsalt = bsToString newsaltbs
+      lockhash = getHash newpassphrase newsalt
+  return (Storage entries lockhash newsalt)
+
+------------
+-- crypto
+
+bsToString :: BS.ByteString -> String
+bsToString bytestring = (map BSInternal.w2c $ BS.unpack bytestring)
+
+-- constans
+pbkdf2_rounds = 150000
+pbkdf2_length = 64
+salt_length = 16
+verifier_length = 17
+
+getHash :: String -> String -> String
+getHash passphrase salt = sha512PBKDF2 passphrase salt pbkdf2_rounds pbkdf2_length
+
+getDRBG :: String -> HashDRBG
+getDRBG seed = throwLeft (newGen (pack seed)) :: HashDRBG
+
+encrypt :: Storage -> BS.ByteString
+encrypt storage@(Storage { entries=_, lockhash=lockhash, salt=salt }) =
+  let plaintext = show storage
+      gen = getDRBG lockhash
+      cipherlen = (length plaintext) + 2 * verifier_length
+      (cipher, gen') = throwLeft $ genBytes cipherlen gen
+      (verifier, _) = throwLeft $ genBytes verifier_length gen'
+      -- put together full plaintext
+      fullplaintext = BS.append verifier $ BS.append verifier $ pack plaintext
+      encrypted = BS.pack $ BS.zipWith xor fullplaintext cipher
+  in BS.append (pack salt) encrypted
+
+decrypt :: String -> BS.ByteString -> Maybe String
+decrypt passphrase fcontent =
+  let (salt, encrypted) = BS.splitAt salt_length fcontent
+      -- decrypt
+      gen = getDRBG $ getHash passphrase (bsToString salt)
+      (cipher, _) = throwLeft $ genBytes (BS.length encrypted) gen
+      decrypted = BS.pack $ BS.zipWith xor encrypted cipher
+      -- verify
+      (verifier1, decrypted') = BS.splitAt verifier_length decrypted
+      (verifier2, plaintext) = BS.splitAt verifier_length decrypted'
+  in if verifier1 /= verifier2
+      then Nothing
+      else Just (map BSInternal.w2c $ BS.unpack plaintext)
 
 openStorage :: String -> IO Storage
-openStorage file = do
-  -- ask
+openStorage path = do
   putStr "(loading) Passphrase: "
   hSetEcho stdin False
   mpassphrase <- getPromptAns
   hSetEcho stdin True
   if mpassphrase == Nothing
       then exitSuccess
-      else return ()
-  putStrLn ""
-  let Just passphrase = mpassphrase
-  -- open file
-  encrypteddata <- BS.readFile file
-  -- decrypt
-  let (lockhash, cipherbytes, _) = getCipherAndHash passphrase $ BS.length encrypteddata
-      decrypted = BS.pack $ BS.zipWith xor encrypteddata cipherbytes
-      -- verify
-      (verifier1, decrypted') = BS.splitAt 64 decrypted
-      (verifier2, plaintext) = BS.splitAt 64 decrypted'
-  if verifier1 /= verifier2
-      then do putStrLn "Authentication failed."
-              exitFailure
-      else do putStrLn "Authentication complete."
-              let storage = read (map BSInternal.w2c $ BS.unpack plaintext) :: Storage -- read
-                  Storage entries _ = storage
-              putStrLn $ "Number of keys: "++(show $ length entries) -- forcing evaluation
-              return (Storage entries lockhash)
+      else do putStrLn ""
+              let Just passphrase = mpassphrase
+              -- read and decrypt
+              putStr "decrypting ..."
+              hFlush stdout
+              fdata <- BS.readFile path
+              let decrypted = decrypt passphrase fdata
+              clearLine
+              setCursorColumn 0
+              case decrypted of
+                Nothing -> do
+                    putStrLn "Authentication failed."
+                    exitFailure
+                Just plaintext -> do
+                    putStrLn "Authentication complete."
+                    let storage = read plaintext :: Storage
+                        Storage entries _ _ = storage
+                    -- forcing evaluation
+                    putStrLn $ "Number of keys: "++(show $ length entries)
+                    return storage
 
 save :: String -> Storage -> IO ()
 save path storage@(Storage { entries=_, lockhash=lockhash }) = do
-  -- encrypt
-  let plaintext = show storage
-      (cipherbytes, gen) = getCipher lockhash $ (length plaintext) + 128
-      (verifier, _) = throwLeft $ genBytes 64 gen -- get verifier
-      fulltext = BS.append verifier $ BS.append verifier $ pack plaintext
-      encrypted = BS.pack $ BS.zipWith xor fulltext cipherbytes
+  putStr "encrypting ..."
+  hFlush stdout
+  let encrypted = encrypt storage
   BS.writeFile path encrypted
+  clearLine
+  setCursorColumn 0
+  putStrLn "saved."
 
 -----------
 
@@ -151,7 +185,7 @@ mainprompt path storage = do
 prompthandle :: String -> Storage -> [String] -> IO Storage
 prompthandle path storage [] = return storage
 
-prompthandle path storage@(Storage entries _) ("change-lock":[]) = do
+prompthandle path storage@(Storage entries oldlockhash salt) ("change-lock":[]) = do
   putStr "   New passphrase: "
   hSetEcho stdin False
   mpassphrase <- getPromptAns
@@ -170,9 +204,9 @@ prompthandle path storage@(Storage entries _) ("change-lock":[]) = do
           if passphrase /= passphrase'
               then do putStrLn "ERROR: given passphrases do not match"
                       return storage
-              else do let (newlockhash, _, _) = getCipherAndHash passphrase 0
+              else do storage' <- setPassphrase storage passphrase
                       putStrLn "New hash saved."
-                      return (Storage entries newlockhash)
+                      return storage'
 
 prompthandle path storage ("quit":[]) = do
   quit path storage

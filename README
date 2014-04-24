@@ -7,4 +7,15 @@
 
 * pbkdf from http://hackage.haskell.org/package/pbkdf
 * drbg from http://hackage.haskell.org/package/DRBG
+* ansi-terminal
+
+Try `cabal install ...` to get them.
+
+## Storage file layout:
+
+|salt     |verifier1|verifier2|representation of Storage data type|
+|plaintext|encrypted                                              |
+
+* length of salt: 16 bytes
+* length of verifier1 and verifier2: 17 bytes
 
