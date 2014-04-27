@@ -1,13 +1,10 @@
 
-## TODO
-
-* salt
-
 ## Requires
 
-* pbkdf from http://hackage.haskell.org/package/pbkdf
-* drbg from http://hackage.haskell.org/package/DRBG
+* pbkdf
+* drbg
 * ansi-terminal
+* regex-posix
 
 Try `cabal install ...` to get them.
 

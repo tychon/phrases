@@ -14,7 +14,9 @@ import System.Console.ANSI( clearLine, setCursorColumn )
 import Data.ByteString.Char8( pack )
 import qualified Data.ByteString.Internal as BSInternal (c2w, w2c)
 import qualified Data.ByteString as BS
-
+import Text.Regex.Posix
+import Text.Printf( printf )
+import Data.Char (toUpper)
 -- crypto
 import Crypto.PBKDF( sha512PBKDF2 )
 import Crypto.Random.DRBG
@@ -34,12 +36,16 @@ main = do putStrLn "This is your passphrase storage manager."
                 let path = findInputPath flags
                 putStrLn $ "Storage File: "++path
                 if (InitStorage `elem` flags)
-                    then do let storage = Storage { entries = [], lockhash = "", salt="" } -- TODO sane?
-                            putStrLn "Initializing Storage."
-                            mainprompt path storage
+                    then do let storage = Storage { entries = [], lockhash="", salt="" }
+                            putStrLn "Initializing Storage:"
+                            clres <- changeLock path storage
+                            case clres of
+                              Nothing -> exitFailure
+                              Just storage' ->
+                                  mainprompt path storage' NoPromptInfo
                     else do storage <- openStorage path
                             putStrLn "Loaded."
-                            mainprompt path storage
+                            mainprompt path storage NoPromptInfo
             (_, nonOpts, []) -> error $ "unrecognized arguments: " ++ unwords nonOpts
             (_, _, msgs) -> error $ concat msgs ++ usageInfo header options
 
@@ -78,14 +84,53 @@ data SEntry = SEntry { name, comment, phrase :: String }
        deriving (Show, Read)
 
 -- set passphrase and salt
-
 setPassphrase :: Storage -> String -> IO Storage
-setPassphrase (Storage entries oldlockhash oldsalt) newpassphrase = do
+setPassphrase (Storage entries _ _) newpassphrase = do
   gen <- newGenIO :: IO HashDRBG
   let (newsaltbs, _) = throwLeft $ genBytes salt_length gen
       newsalt = bsToString newsaltbs
       lockhash = getHash newpassphrase newsalt
   return (Storage entries lockhash newsalt)
+
+-- new
+newEntry :: SEntry -> [SEntry] -> [SEntry]
+newEntry _ [] = []
+newEntry
+  entry@(SEntry { name=newname })
+  ((SEntry { name=curname }):entries)
+  = if (map toUpper newname) < (map toUpper curname) then
+        entry:entries
+    else newEntry entry entries
+  
+
+-- list
+listEntries :: String -> [SEntry] -> [SEntry]
+listEntries _ [] = []
+listEntries
+  regex
+  (e@(SEntry name comment phrase):entries)
+  = if name =~ regex then
+        e:(listEntries regex entries)
+    else
+        listEntries regex entries
+
+-- print list of entries to list of strings
+showEntries :: [SEntry] -> [String]
+showEntries [] = []
+showEntries ((SEntry name comment phrase):entries) =
+  (printf "%15s %50s\n" name comment):(showEntries entries)
+
+-- change name
+changeName :: String -> String -> [SEntry] -> [SEntry]
+changeName _ _ [] = []
+changeName
+  oldname
+  newname
+  ((SEntry name comment phrase):entries)
+  = if name == oldname then
+        (SEntry newname comment phrase):entries
+    else
+        changeName oldname newname entries
 
 ------------
 -- crypto
@@ -170,53 +215,118 @@ save path storage@(Storage { entries=_, lockhash=lockhash }) = do
   setCursorColumn 0
   putStrLn "saved."
 
------------
-
-mainprompt path storage = do
-  putStr "> "
-  minputstr <- getPromptAns
-  case minputstr of
-    Nothing -> do putStrLn "Try \"quit\""
-                  mainprompt path storage
-    Just inputstr -> do let input = words inputstr
-                        storage' <- prompthandle path storage input
-                        mainprompt path storage'
-
-prompthandle :: String -> Storage -> [String] -> IO Storage
-prompthandle path storage [] = return storage
-
-prompthandle path storage@(Storage entries oldlockhash salt) ("change-lock":[]) = do
-  putStr "   New passphrase: "
+changeLock path storage = do
+  putStrLn "Changing master passphrase"
+  putStr "    New passphrase: "
   hSetEcho stdin False
   mpassphrase <- getPromptAns
   hSetEcho stdin True
   case mpassphrase of
-    Nothing -> return storage
+    Nothing -> return Nothing
     Just passphrase -> do
-      putStr "\nRepeat passphrase: "
+      putStr "\n Repeat passphrase: "
       hSetEcho stdin False
       mpassphrase' <- getPromptAns
       hSetEcho stdin True
       case mpassphrase' of
-        Nothing -> return storage
+        Nothing -> return Nothing
         Just passphrase' -> do
           putStrLn ""
           if passphrase /= passphrase'
               then do putStrLn "ERROR: given passphrases do not match"
-                      return storage
+                      return Nothing
               else do storage' <- setPassphrase storage passphrase
                       putStrLn "New hash saved."
-                      return storage'
-
-prompthandle path storage ("quit":[]) = do
-  quit path storage
-prompthandle path storage other = do
-  putStrLn $ "unknown command: "++(unwords other)
-  return storage
+                      save path storage'
+                      return (Just storage')
 
 -----------
 
-quit path storage = do
+data PromptInfo = PromptList [SEntry] | PromptName SEntry | NoPromptInfo
+
+mainprompt path storage promptinfo = do
+  putStr "> "
+  minputstr <- getPromptAns
+  case minputstr of
+    Nothing -> do putStrLn "Try \"quit\""
+                  mainprompt path storage promptinfo
+    Just inputstr -> do let input = words inputstr
+                        (storage', promptinfo) <- prompthandle path storage promptinfo input
+                        mainprompt path storage' promptinfo
+
+prompthandle :: String -> Storage -> PromptInfo -> [String] -> IO (Storage, PromptInfo)
+-- empty line
+prompthandle path storage@(Storage entries oldlockhash salt) pinf [] = do
+  putStrLn $ "Datafile: " ++ path
+  putStrLn $ "Keys: " ++ (show $ length entries)
+  putStrLn "For available commands try \"help\""
+  return (storage, pinf)
+-- help
+prompthandle _ storage pinf ("help":[]) = do
+  putStrLn "== Available Commands:"
+  putStrLn "quit         Exit programm"
+  putStrLn "save         Save to file"
+  putStrLn "change-lock  Choose new master passphrase"
+  putStrLn "list [RE]    Search for name"
+  putStrLn "[NUM]        Select a name from previous list"
+  putStrLn "new [NAME]   New name-phrase pair"
+  putStrLn "== With selected pair:"
+  putStrLn "rename       Choose another name"
+  putStrLn "plain        Shows plaintext passphrase"
+  putStrLn "change       Change passphrase of this pair"
+  putStrLn "delete       Deletes the selected pair"
+  return (storage, pinf)
+-- save
+prompthandle path storage pinf ("save":[]) = do
+  save path storage
+  return (storage, pinf)
+-- change master passphrase
+prompthandle path storage@(Storage entries oldlockhash salt) pinf ("change-lock":[]) = do
+  res <- changeLock path storage
+  case res of
+    Nothing -> return (storage, pinf)
+    Just storage' -> return (storage', pinf)
+-- save and exit
+prompthandle path storage _ ("quit":[]) = do
   save path storage
   exitSuccess
+
+-- new
+prompthandle path storage@(Storage entries lockhash salt) pinf ("new":name:[]) = do
+  putStrLn $ "New entry: "++name
+  putStr $ " Comment: "
+  mcomment <- getPromptAns
+  let comment = case mcomment of
+                  Nothing -> ""
+                  Just str -> str
+  putStr $ " Passphrase: "
+  hSetEcho stdin False
+  mpassphrase <- getPromptAns
+  hSetEcho stdin True
+  case mpassphrase of
+    Nothing -> do
+        putStrLn "Not saved."
+        return (storage, pinf)
+    Just passphrase -> do
+        putStrLn ""
+        let entries' = newEntry (SEntry name comment passphrase) entries
+            storage' = Storage entries' lockhash salt
+        save path storage'
+        return (storage', pinf)
+
+-- list
+prompthandle _ storage@(Storage entries lockhash salt) pinf ("list":regex:[]) = do
+  let list = listEntries regex entries
+  if null list then do
+      putStrLn "no matches"
+      return (storage, NoPromptInfo)
+  else do
+      putStrLn $ "== List for "++regex
+      putStr $ unlines $ showEntries list
+      return (storage, PromptList list)
+
+-- unknown input
+prompthandle path storage pinf other = do
+  putStrLn $ "unknown command: "++(unwords other)
+  return (storage, pinf)
 
