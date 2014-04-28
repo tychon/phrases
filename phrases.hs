@@ -43,9 +43,12 @@ main = do putStrLn "This is your passphrase storage manager."
                               Nothing -> exitFailure
                               Just storage' ->
                                   mainprompt path storage' NoPromptInfo
-                    else do storage <- openStorage path
+                    else do storage@(Storage { entries=entries }) <- openStorage path
                             putStrLn "Loaded."
-                            mainprompt path storage NoPromptInfo
+                            putStrLn "== All Entries "
+                            let list = listEntries ".*" entries
+                            putStr $ unlines $ showEntries 1 list
+                            mainprompt path storage (PromptList list)
             (_, nonOpts, []) -> error $ "unrecognized arguments: " ++ unwords nonOpts
             (_, _, msgs) -> error $ concat msgs ++ usageInfo header options
 
@@ -117,7 +120,7 @@ listEntries
 showEntries :: Int -> [SEntry] -> [String]
 showEntries _ [] = []
 showEntries counter ((SEntry name comment phrase):entries) =
-  (printf "%03d %15s %50s\n" counter name comment):(showEntries (counter+1) entries)
+  (printf "%03d %15s %50s" counter name comment):(showEntries (counter+1) entries)
 
 -- change name
 changeName :: String -> String -> [SEntry] -> [SEntry]
@@ -324,11 +327,33 @@ prompthandle _ storage@(Storage entries lockhash salt) pinf ("list":regex:[]) = 
       putStrLn "no matches"
       return (storage, NoPromptInfo)
   else do
-      putStrLn $ "== List for "++regex
       putStr $ unlines $ showEntries 1 list
       return (storage, PromptList list)
 
--- unknown input
+-- plain
+prompthandle _ storage pinf@(PromptName (SEntry name comment phrase)) ("plain":[]) = do
+  putStrLn "=========="
+  putStrLn $ "  "++name
+  putStrLn $ "  "++comment
+  putStrLn $ "  "++phrase
+  putStrLn "=========="
+  return (storage, pinf)
+
+-- unknown input maybe select item from list
+prompthandle path storage pinf (other:[]) =
+  if other =~ "^[0-9]+$" then do
+      let idx = (read other :: Int) -1
+      case pinf of
+        PromptList entries -> if idx >= (length entries) || idx < 0 then do
+                                  putStrLn "Index out of range."
+                                  return (storage, pinf)
+                              else
+                                  return (storage, PromptName (entries !! idx))
+        _ -> do putStrLn "No list showed. You can not select :-("
+                return (storage, pinf)
+  else do
+      putStrLn $ "unknown command: "++other
+      return (storage, pinf)
 prompthandle path storage pinf other = do
   putStrLn $ "unknown command: "++(unwords other)
   return (storage, pinf)
