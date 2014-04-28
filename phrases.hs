@@ -94,14 +94,13 @@ setPassphrase (Storage entries _ _) newpassphrase = do
 
 -- new
 newEntry :: SEntry -> [SEntry] -> [SEntry]
-newEntry _ [] = []
+newEntry entry [] = [entry]
 newEntry
   entry@(SEntry { name=newname })
-  ((SEntry { name=curname }):entries)
+  (curentry@(SEntry { name=curname }):entries)
   = if (map toUpper newname) < (map toUpper curname) then
-        entry:entries
-    else newEntry entry entries
-  
+        entry:curentry:entries
+    else curentry:(newEntry entry entries)
 
 -- list
 listEntries :: String -> [SEntry] -> [SEntry]
@@ -115,10 +114,10 @@ listEntries
         listEntries regex entries
 
 -- print list of entries to list of strings
-showEntries :: [SEntry] -> [String]
-showEntries [] = []
-showEntries ((SEntry name comment phrase):entries) =
-  (printf "%15s %50s\n" name comment):(showEntries entries)
+showEntries :: Int -> [SEntry] -> [String]
+showEntries _ [] = []
+showEntries counter ((SEntry name comment phrase):entries) =
+  (printf "%03d %15s %50s\n" counter name comment):(showEntries (counter+1) entries)
 
 -- change name
 changeName :: String -> String -> [SEntry] -> [SEntry]
@@ -245,7 +244,10 @@ changeLock path storage = do
 data PromptInfo = PromptList [SEntry] | PromptName SEntry | NoPromptInfo
 
 mainprompt path storage promptinfo = do
-  putStr "> "
+  case promptinfo of
+    NoPromptInfo -> putStr "> "
+    PromptList l -> putStr "(list)> "
+    PromptName (SEntry { name=name }) -> putStr $ name++" > "
   minputstr <- getPromptAns
   case minputstr of
     Nothing -> do putStrLn "Try \"quit\""
@@ -288,7 +290,7 @@ prompthandle path storage@(Storage entries oldlockhash salt) pinf ("change-lock"
     Just storage' -> return (storage', pinf)
 -- save and exit
 prompthandle path storage _ ("quit":[]) = do
-  save path storage
+  --save path storage -- not neccessary since we save on every change of data already.
   exitSuccess
 
 -- new
@@ -309,10 +311,11 @@ prompthandle path storage@(Storage entries lockhash salt) pinf ("new":name:[]) =
         return (storage, pinf)
     Just passphrase -> do
         putStrLn ""
-        let entries' = newEntry (SEntry name comment passphrase) entries
+        let newentry = (SEntry name comment passphrase)
+            entries' = newEntry newentry entries
             storage' = Storage entries' lockhash salt
         save path storage'
-        return (storage', pinf)
+        return (storage', PromptName newentry)
 
 -- list
 prompthandle _ storage@(Storage entries lockhash salt) pinf ("list":regex:[]) = do
@@ -322,7 +325,7 @@ prompthandle _ storage@(Storage entries lockhash salt) pinf ("list":regex:[]) = 
       return (storage, NoPromptInfo)
   else do
       putStrLn $ "== List for "++regex
-      putStr $ unlines $ showEntries list
+      putStr $ unlines $ showEntries 1 list
       return (storage, PromptList list)
 
 -- unknown input

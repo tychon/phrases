@@ -1,4 +1,8 @@
 
+## TODO
+
+* catch userError on wrong posix regexes
+
 ## Requires
 
 * pbkdf
