@@ -128,11 +128,22 @@ changeName _ _ [] = []
 changeName
   oldname
   newname
-  ((SEntry name comment phrase):entries)
+  (curentry@(SEntry name comment phrase):entries)
   = if name == oldname then
         (SEntry newname comment phrase):entries
     else
-        changeName oldname newname entries
+        curentry:(changeName oldname newname entries)
+
+changePassphrase :: String -> String -> [SEntry] -> [SEntry]
+changePassphrase _ _ [] = []
+changePassphrase
+  name
+  newphrase
+  (curentry@(SEntry curname comment phrase):entries)
+  = if curname == name then
+        (SEntry name comment newphrase):entries
+    else
+        curentry:(changePassphrase name newphrase entries)
 
 ------------
 -- crypto
@@ -338,6 +349,26 @@ prompthandle _ storage pinf@(PromptName (SEntry name comment phrase)) ("plain":[
   putStrLn $ "  "++phrase
   putStrLn "=========="
   return (storage, pinf)
+
+-- change
+prompthandle
+  path
+  storage@(Storage entries lockhash salt)
+  pinf@(PromptName (SEntry name comment phrase))
+  ("change":[])
+  = do putStr $ " New passphrase: "
+       hSetEcho stdin False
+       mpassphrase <- getPromptAns
+       hSetEcho stdin True
+       case mpassphrase of
+         Nothing -> do putStrLn "Aborted."
+                       return (storage, pinf)
+         Just newphrase -> do
+             putStrLn ""
+             let entries' = changePassphrase name newphrase entries
+                 storage' = (Storage entries' lockhash salt)
+             save path storage'
+             return (storage', PromptName (SEntry name comment newphrase))
 
 -- unknown input maybe select item from list
 prompthandle path storage pinf (other:[]) =
