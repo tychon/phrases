@@ -1,6 +1,7 @@
 
 ## TODO
 
+* allow changing comments :-P
 * catch userError on wrong posix regexes
 
 ## Requires
