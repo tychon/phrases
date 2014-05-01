@@ -9,14 +9,14 @@ import System.Exit
 import System.IO
 import System.IO.Error( isEOFError )
 import System.Console.GetOpt
-import System.Console.ANSI( clearLine, setCursorColumn )
+import System.Console.ANSI( clearLine, setCursorColumn, clearScreen )
 -- general
 import Data.ByteString.Char8( pack )
 import qualified Data.ByteString.Internal as BSInternal (c2w, w2c)
 import qualified Data.ByteString as BS
 import Text.Regex.Posix
 import Text.Printf( printf )
-import Data.Char (toUpper)
+import Data.Char( toUpper )
 -- crypto
 import Crypto.PBKDF( sha512PBKDF2 )
 import Crypto.Random.DRBG
@@ -117,10 +117,20 @@ listEntries
         listEntries regex entries
 
 -- print list of entries to list of strings
-showEntries :: Int -> [SEntry] -> [String]
+showEntries ::
+     Int      -- The start index for counting the keys
+  -> [SEntry] -- The list of entries
+  -> [String] -- The list of lines to be printed without '\n'
 showEntries _ [] = []
 showEntries counter ((SEntry name comment phrase):entries) =
-  (printf "%03d %15s %50s" counter name comment):(showEntries (counter+1) entries)
+  let name' = justl name 24
+      comment' = take 50 comment
+  in (printf "%03d %s %s" counter name' comment'):(showEntries (counter+1) entries)
+
+justl :: String -> Int -> String
+justl str len =
+  let txtlen = length str
+  in  take len $ str ++ (concat $ take (len - txtlen) $ repeat ". ")
 
 -- change name
 changeName :: String -> String -> [SEntry] -> [SEntry]
@@ -144,6 +154,16 @@ changePassphrase
         (SEntry name comment newphrase):entries
     else
         curentry:(changePassphrase name newphrase entries)
+
+-- | Deletes only the first occurence of SEntry with the given name
+deleteEntry :: String -> [SEntry] -> [SEntry]
+deleteEntry
+  delname
+  (curentry@(SEntry name comment phrase):entries)
+  = if name == delname then
+        entries
+    else
+        curentry:(deleteEntry delname entries)
 
 ------------
 -- crypto
@@ -258,6 +278,7 @@ changeLock path storage = do
 data PromptInfo = PromptList [SEntry] | PromptName SEntry | NoPromptInfo
 
 mainprompt path storage promptinfo = do
+  putStrLn ""
   case promptinfo of
     NoPromptInfo -> putStr "> "
     PromptList l -> putStr "(list)> "
@@ -273,6 +294,7 @@ mainprompt path storage promptinfo = do
 prompthandle :: String -> Storage -> PromptInfo -> [String] -> IO (Storage, PromptInfo)
 -- empty line
 prompthandle path storage@(Storage entries oldlockhash salt) pinf [] = do
+  clearScreen
   putStrLn $ "Datafile: " ++ path
   putStrLn $ "Keys: " ++ (show $ length entries)
   putStrLn "For available commands try \"help\""
@@ -286,11 +308,14 @@ prompthandle _ storage pinf ("help":[]) = do
   putStrLn "list [RE]    Search for name"
   putStrLn "[NUM]        Select a name from previous list"
   putStrLn "new [NAME]   New name-phrase pair"
-  putStrLn "== With selected pair:"
-  putStrLn "rename       Choose another name"
-  putStrLn "plain        Shows plaintext passphrase"
-  putStrLn "change       Change passphrase of this pair"
-  putStrLn "delete       Deletes the selected pair"
+  putStrLn "\n== With selected pair:"
+  putStrLn "rename [NAME] Set another name"
+  putStrLn "plain         Shows plaintext passphrase"
+  putStrLn "change        Change passphrase of this pair"
+  putStrLn "delete        Deletes the selected pair immediately"
+  putStrLn "\n== Comment"
+  putStrLn "Use ENTER to clear the screen immediately."
+  putStrLn "ALL changes are save instantly to the data file when\none action is successful."
   return (storage, pinf)
 -- save
 prompthandle path storage pinf ("save":[]) = do
@@ -310,7 +335,7 @@ prompthandle path storage _ ("quit":[]) = do
 -- new
 prompthandle path storage@(Storage entries lockhash salt) pinf ("new":name:[]) = do
   putStrLn $ "New entry: "++name
-  putStr $ " Comment: "
+  putStr $ "  Comment: "
   mcomment <- getPromptAns
   let comment = case mcomment of
                   Nothing -> ""
@@ -332,6 +357,10 @@ prompthandle path storage@(Storage entries lockhash salt) pinf ("new":name:[]) =
         return (storage', PromptName newentry)
 
 -- list
+prompthandle _ storage@(Storage {entries=entries}) _ ("list":[]) = do
+  let list = listEntries ".*" entries
+  putStr $ unlines $ showEntries 1 list
+  return (storage, PromptList list)
 prompthandle _ storage@(Storage entries lockhash salt) pinf ("list":regex:[]) = do
   let list = listEntries regex entries
   if null list then do
@@ -369,6 +398,33 @@ prompthandle
                  storage' = (Storage entries' lockhash salt)
              save path storage'
              return (storage', PromptName (SEntry name comment newphrase))
+
+-- rename
+prompthandle _ storage pinf ("rename":[]) = do
+  putStrLn "Say `rename NEWNAME'"
+  return (storage, pinf)
+prompthandle
+  path
+  storage@(Storage entries lockhash salt)
+  pinf@(PromptName (SEntry name comment phrase))
+  ("rename":newname:[])
+  = do let entries' = changeName name newname entries
+           storage' = (Storage entries' lockhash salt)
+       save path storage'
+       return (storage', PromptName (SEntry newname comment phrase))
+
+-- delete
+prompthandle
+  path
+  storage@(Storage entries lockhash salt)
+  pinf@(PromptName (SEntry name comment phrase))
+  ("delete":[])
+  = do let entries' = deleteEntry name entries
+           storage' = (Storage entries' lockhash salt)
+       save path storage'
+       let list = listEntries ".*" entries'
+       putStr $ unlines $ showEntries 1 list
+       return (storage', (PromptList list))
 
 -- unknown input maybe select item from list
 prompthandle path storage pinf (other:[]) =
