@@ -1,6 +1,7 @@
 
 ## TODO
 
+* add some entropy to DRBG that changes on every time saving
 * allow changing comments :-P
 * catch userError on wrong posix regexes
 
