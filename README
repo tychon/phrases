@@ -1,9 +1,13 @@
 
+Note: This is not markdown.
+
 ## TODO
 
+* migrate from HashDRBG to HMACDRBG?
 * add some entropy to DRBG that changes on every time saving
 * allow changing comments :-P
 * catch userError on wrong posix regexes
+* check regexes ignorecase
 
 ## Requires
 
@@ -13,12 +17,116 @@
 * regex-posix
 
 Try `cabal install ...` to get them.
+Try `ghc --make phrases` to compile.
 
+#### Basic Usage
+
+...
+
+## Arguments
+
+$ main [OPTION...]
+ -V,--version   show version number
+ -n,--init      create new file
+ -i FILE,--input=FILE
+   Open the given FILE.
+ --plain
+   Open the given FILE, print representation of Storage to stderr and exit.
+
+## Commands
+
+resalt
+
+## Notes on Security
+
+* Since Haskell trades memory for speed, your passwords may end up all over
+  your memory. You should check if your system applies appropriate memory
+  protection measures.
+* The hash of your passphrase is stored in memory, so the program can save
+  your file after every change.
+* The security of this program relies heavily on the modules listes in
+  'Requirements'. I have not reviewed the code nor do i have to knowledge to
+  review strong crypto algorithms. I simply assume that the algorithms provided
+  in mainstream packages on hackage are well-imlemented.
+* The randomness comes from System.Crypto.Random which uses your systems
+  secure entropy. Make sure your system can provide secure entropy in the
+  way required. This module seems to be untested on Windows. Refer to doc.
+* Don't overdo the security here. You are going to post the password anywhere
+  in your crappy browser.
+
+#### Under The Hood
 ## Storage file layout:
 
-|salt     |verifier1|verifier2|representation of Storage data type|
-|plaintext|encrypted                                              |
+|StorageProps|0|salt     |innersalt|hash|hash|representation of Storage data type|
+|plaintext                         |encrypted                                    |
 
 * length of salt: 16 bytes
-* length of verifier1 and verifier2: 17 bytes
+* length of innersalt: 16 bytes
+* length of one hash (SHA256): 32 bytes
+
+The salt is not changed. Use 'resalt' to get new salt.
+The innersalt is changed every time the file is saved to make sure the byte
+stream from the DRBG is not the same as the previous one.
+The verifiers change every time. They are used for checking if the correct
+passphrase was entered by simply comparing them.
+
+How to decrypt:
+  * read StorageProps and check them for sane values
+  * retrieve salt, innersalt and passphrase
+  * put passphrase and salt into sha512PBKDF2
+  * seed HashDRBG with PBKDF2 result concatenated with innersalt
+  * xor byte stream from DRBG with rest of file
+  * check if verifiers match
+  * use 'read' to cast String to Storage
+  * set lockhash in Storage
+
+How to encrypt:
+  * generate 16 bytes verifier
+  * generate 16 bytes innersalt
+  * seed HashDRBG with hashed passphrase concatenated with innersalt
+  * construct plaintext to be encrypted: concat two verifiers and 'show storage'
+  * xor byte stream from DRBG with plaintext
+
+## Storage Data Type
+
+data StorageProps = StorageProps {
+  version :: Int
+    The version of the storage file.
+    Only version 1 has no StorateProps field.
+  salt_length :: Int
+    The length of the salt, min: 16
+  innersalt_length :: Int
+    The length of the inner salt, min: 16
+  pbkdf2_rounds :: Int
+    The number of rounds to run the PBKDF, min: 150000
+  pbkdf2_length :: Int
+    The length of the generated key, min: 64
+
+Storage
+  salt :: String
+    Plaintext salt.
+  lockhash :: String
+    The hashed passphrase to the container.
+  [SEntry]
+    The list of entries in the container.
+
+SEntry
+  Phrase
+    name :: String
+      The name of the passphrase, used for listing.
+    comment :: String
+      An arbitrary comment.
+    phrase :: String
+  Asym
+    name :: String
+      The name of the keypair, used for listing
+    comment :: String
+      An arbitrary comment.
+    fingerprint :: String
+      The connected fingerprint.
+    public
+      The public key
+    private
+      The private key
+
 
