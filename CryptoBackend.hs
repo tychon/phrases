@@ -1,11 +1,12 @@
 
-module CryptoBackend () where
+module CryptoBackend where
 
 import Control.Exception( assert )
 import Data.Maybe ( fromJust )
-import qualified Data.ByteString.Char8 as BS8 ( unpack, pack, elemIndex, take )
-import qualified Data.ByteString.Internal as BSInternal (c2w, w2c)
+import Numeric ( showHex )
+import Data.ByteString ( ByteString )
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BS8 ( singleton, unpack, pack, elemIndex )
 -- crypto
 import Crypto.Hash.SHA256 ( hash )
 import Crypto.PBKDF( sha512PBKDF2 )
@@ -25,17 +26,19 @@ data SEntryLegacy1 = SEntryLegacy1 {
     deriving (Show, Read)
 
 -- storage type
-data Storage = Storage {
-  salt :: String,
-  lockhash :: String,
-  entries :: [SEntry] }
-    deriving (Show, Read)
 data StorageProps = StorageProps {
   version,
   salt_length,
   innersalt_length,
   pbkdf2_rounds,
-  pbkdf2_length :: Int }
+  pbkdf2_length :: Int,
+  salt,
+  innersalt :: ByteString }
+    deriving (Show, Read)
+data Storage = Storage {
+  props :: Maybe StorageProps,
+  lockhash :: Maybe ByteString,
+  entries :: [SEntry] }
     deriving (Show, Read)
 data SEntry =
     Phrase {
@@ -50,42 +53,50 @@ data SEntry =
       private :: String }
   deriving (Show, Read)
 
---bsToString :: BS.ByteString -> String
---bsToString bytestring = (map BSInternal.w2c $ BS.unpack bytestring)
+-- | Simply creates a ByteString containing one NUL character.
+nullbytestring :: ByteString
+nullbytestring = BS8.singleton '\0'
 
--- | Runs the PBKDF2 on the given passphrase and salt with given props.
+-- | Runs the PBKDF2 on the given passphrase and props.
 -- Returns a String with the length as specified in (pbkdf2_length props).
-getPBK :: StorageProps -> String -> String -> String
-getPBK (StorageProps { pbkdf2_rounds=rounds, pbkdf2_length=length }) passphrase salt =
-  sha512PBKDF2 passphrase salt rounds length
+getPBK :: StorageProps -> ByteString -> ByteString
+getPBK StorageProps{..} passphrase =
+  BS8.pack $ sha512PBKDF2 (BS8.unpack passphrase) (BS8.unpack salt) pbkdf2_rounds pbkdf2_length
 
 -- | Initializes a DRBG from the given seed.
-getDRBG :: String -> HashDRBG
-getDRBG seed = throwLeft (newGen (BS8.pack seed)) :: HashDRBG
+getDRBG :: ByteString -> HmacDRBG
+getDRBG seed = throwLeft (newGen seed) :: HmacDRBG
 
+-- | Retrieve standard storage properties.
+-- You still have to initialize the salt and innersalts.
 getStdStorageProps = StorageProps {
   version = 2,
   salt_length = 16,
   innersalt_length = 16,
   pbkdf2_rounds = 150000,
-  pbkdf2_length = 64 }
+  pbkdf2_length = 64,
+  salt = BS.empty,
+  innersalt = BS.empty }
 
 -- | Check StorageProps for sanity.
-checkStorageProps p | version p >= 1
-                    , salt_length p >= 16
-                    , innersalt_length p >= 16
-                    , pbkdf2_rounds p >= 150000
-                    , pbkdf2_length p >= 64
-                      = True
-                    | otherwise
-                      = False
+checkStorageProps StorageProps{..}
+  | version >= 1
+  , salt_length >= 16
+  , innersalt_length >= 16
+  , pbkdf2_rounds >= 150000
+  , pbkdf2_length >= 64
+  , BS.length salt == salt_length
+  , BS.length innersalt == innersalt_length
+    = True
+  | otherwise
+    = False
 
 -- | Read the StorageProps from file content.
 -- Returns the parsed Storage Props and the remaining content.
 -- Don't forget to call checkStorageProps.
-readProps :: BS.ByteString -> (StorageProps, BS.ByteString)
+readProps :: ByteString -> (StorageProps, ByteString)
 readProps fcontent =
-  let propsend = fromJust $ BS8.elemIndex '\0' fcontent
+  let propsend = fromJust $ BS8.elemIndex '\0' fcontent -- search for first nullbyte in file
       (propsstr, fcontent') = (BS.take propsend fcontent, BS.drop (propsend+1) fcontent)
       props = read (BS8.unpack propsstr) :: StorageProps
   in (props, fcontent')
@@ -93,14 +104,13 @@ readProps fcontent =
 -- | Decrypt an container when you have its props.
 -- Takes the StorageProps the passphrase and the file content left after
 -- consuming the StorageProps.
--- Returns Nothing if hashes don't match, Just (hash, plaintext) in case the
--- passphrase worked. You still have to check the hash against the plaintext.
-decrypt :: StorageProps -> String -> BS.ByteString -> Maybe (String, String)
-decrypt props passphrase fcontent =
-  let (salt, fcontent') = assert ((version props) == 2) (BS.splitAt (salt_length props) fcontent)
-      (innersalt, encrypted) = BS.splitAt (innersalt_length props) fcontent'
-      -- decrypt
-      gen = getDRBG $ (getPBK props passphrase (BS8.unpack salt)) ++ (BS8.unpack innersalt)
+-- Returns Nothing if hashes don't match, Just (lockhash, hash, plaintext) in
+-- case the passphrase worked. You still have to check the hash against the
+-- plaintext and set props and lockhash in the parsed storage.
+decrypt :: StorageProps -> ByteString -> ByteString -> Maybe (ByteString, ByteString, ByteString)
+decrypt props@StorageProps{..} passphrase encrypted =
+  let lockhash = (getPBK props passphrase)
+      gen = getDRBG $ BS.append lockhash innersalt
       (cipher, _) = throwLeft $ genBytes (BS.length encrypted) gen
       decrypted = BS.pack $ BS.zipWith (xor) encrypted cipher
       -- check hashes
@@ -108,17 +118,36 @@ decrypt props passphrase fcontent =
       (hash2, plaintext) = BS.splitAt 32 decrypted'
   in if hash1 /= hash2
       then Nothing
-      else Just (BS8.unpack hash1, BS8.unpack plaintext)
+      else Just (lockhash, hash1, plaintext)
 
-encrypt :: Storage -> BS.ByteString
-encrypt storage@(Storage { entries=_, lockhash=lockhash, salt=salt }) =
-  let plaintext = show storage
-      gen = getDRBG lockhash
-      cipherlen = (length plaintext) + 2 * verifier_length
-      (cipher, gen') = throwLeft $ genBytes cipherlen gen
-      (verifier, _) = throwLeft $ genBytes verifier_length gen'
+-- | Pretty print ByteString as hex chars. Use to display hash.
+printHex :: ByteString -> String
+printHex = concat . map (flip showHex "") . BS.unpack
+
+-- | Check if readhash and hash of plaintext match, then parse Storage.
+-- Returns Nothing when hashes didn't match, Just Storage otherwise.
+checkHash :: ByteString -> ByteString -> Maybe Storage
+checkHash readhash plaintext =
+  let texthash = hash plaintext
+  in if readhash /= texthash
+      then Nothing
+      else Just $ read $ BS8.unpack plaintext
+
+-- | Encrypts the storage with its containing properties and an extra innersalt.
+-- You have to generate a newinnersalt yourself because it is an IO operation.
+-- Returns a ByteString to be written to a file.
+encrypt :: Storage -> ByteString -> ByteString
+encrypt storage newinnersalt =
+  let sprops = (fromJust $ props storage) { innersalt=newinnersalt }
+      slockhash = fromJust $ lockhash storage
+      plaintext = BS8.pack $ show $ storage { props=Nothing, lockhash=Nothing }
+      texthash = hash plaintext
+      gen = assert (BS.length newinnersalt == (innersalt_length sprops))
+                   (getDRBG (BS.append slockhash newinnersalt))
+      cipherlen = (BS.length plaintext) + 2 * (BS.length texthash)
+      (cipher, _) = throwLeft $ genBytes cipherlen gen
       -- put together full plaintext
-      fullplaintext = BS.append verifier $ BS.append verifier $ pack plaintext
+      fullplaintext = BS.append texthash $ BS.append texthash plaintext
       encrypted = BS.pack $ BS.zipWith xor fullplaintext cipher
-  in BS.append (pack salt) encrypted
+  in BS.append (BS8.pack $ show sprops) $ BS.append nullbytestring encrypted
 
