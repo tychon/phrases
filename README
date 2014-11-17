@@ -21,19 +21,32 @@ Try `ghc -XRecordWildCards --make phrases` to compile.
 
 ...
 
-## Arguments
+## How to start
 
-$ main [OPTION...]
- -V,--version   show version number
- -n,--init      create new file
- -i FILE,--input=FILE
-   Open the given FILE.
- --plain
-   Open the given FILE, print representation of Storage to stderr and exit.
+$ main command [arguments]
 
-## Commands
+Commands:
 
-resalt
+version show version number
+init FILE
+        create new container
+open FILE
+        open container for reading and changing
+
+resalt  change permanent salt of container
+migrate OLDVERSION NEWVERSION
+        migrate container from old version to new one.
+        See version command for supported versions.
+        In general version numbers of containers corresponds to git tag of
+        source code. If you forgot the version number of your storage file,
+        open in hex editor and look for the version=X property.
+dump    open container and dump serialized Storage object to stderr
+        Use with care.
+
+## When running.
+
+You can always simply press Enter to clear screen.
+Type help to see list of available commands in prompt.
 
 ## Notes on Security
 
@@ -53,6 +66,11 @@ resalt
   in your crappy browser.
 
 #### Under The Hood
+## Haskell coding style:
+* No exceptions in pure code.
+* Document impure behaviour ( exitFailiure, exitSuccess, error, ... )
+* Many else I don't know yet, still learning ...
+
 ## Storage file layout:
 
 File:
@@ -95,6 +113,15 @@ How to encrypt:
   * seed HashDRBG with lockhash concatenated with new innersalt
   * construct plaintext to be encrypted: concat two verifiers and 'show storage'
   * xor byte stream from DRBG with plaintext
+
+## The modules
+
+* CryptoBackend (CryptoBackend.hs)
+  All pure functions for en- and decryption.
+* BasicUI (BasicUI.hs)
+  IO functions doing the interesting IO things.
+* Main (phrases.hs)
+  Parsing of arguments, the prompt and tying together the basic IO things.
 
 ## Storage Data Type
 
@@ -143,9 +170,13 @@ SEntry
       An arbitrary comment.
     fingerprint :: String
       The connected fingerprint.
-    public
+    public :: String
       The public key
-    private
+    private :: String
       The private key
-
+  Field
+    name :: String
+      The name of the field, used for listing
+    field :: String
+      Any printable ASCII data.
 
