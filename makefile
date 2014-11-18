@@ -1,6 +1,7 @@
 all:
-	ghc -XRecordWildCards --make phrases -o phrases
+	ghc --numeric-version > embedded-ghcversion
+	ghc -XTemplateHaskell -XRecordWildCards --make phrases -o phrases
 
 clear:
-	rm -f *.hi *.o phrases
+	rm -f *.hi *.o embedded-ghcversion phrases
 

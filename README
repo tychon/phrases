@@ -6,6 +6,7 @@ Note: This is not markdown.
 * allow changing comments :-P
 * catch userError on wrong posix regexes
 * check regexes ignorecase
+* license!
 
 ## Requires
 
@@ -71,6 +72,10 @@ Type help to see list of available commands in prompt.
 * Document impure behaviour ( exitFailiure, exitSuccess, error, ... )
 * Many else I don't know yet, still learning ...
 
+## Embedded files
+The help text and the GHC version are embedded into the code on compiletime
+by Template Haskell. Have a look at EmbeddedContent.hs
+
 ## Storage file layout:
 
 File:
@@ -120,6 +125,8 @@ How to encrypt:
   All pure functions for en- and decryption.
 * BasicUI (BasicUI.hs)
   IO functions doing the interesting IO things.
+* EmbeddedContent (EmbeddedContent.hs)
+  Provide the helptext and the ghc version by loading it on compiletime.
 * Main (phrases.hs)
   Parsing of arguments, the prompt and tying together the basic IO things.
 
