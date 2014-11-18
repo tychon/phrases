@@ -36,9 +36,7 @@ getPromptAns = do
         then return (Right line)
         else error "Non-printable characters entered."
     -- exception handler
-    h e = do
-      putStrLn $ "\nException: " ++ (show e)
-      return (Left e)
+    h e = return (Left e)
 
 -- | Turn off echoing on stdin and ask for input, reactivate echoing afterwards.
 -- Returns the same result as getPromptAns.
@@ -48,15 +46,17 @@ getPassphrase = do
   hSetEcho stdin False
   phrase <- getPromptAns
   hSetEcho stdin True
+  putStrLn "<done>"
+  hFlush stdout
   return phrase
 
--- | Like getPassphrase but calls exitFailiure on Exception.
+-- | Like getPassphrase but calls exitFailure on Exception.
 getPassphraseOrFail :: IO String
 getPassphraseOrFail = do
   passphrase <- getPassphrase
   case passphrase of
     Left e -> do
-      putStrLn "No input. Exit"
+      putStrLn $ "Exception: " ++ (show e)
       exitFailure
     Right passphrase -> do
       return passphrase
@@ -72,13 +72,6 @@ initStdStorage passphrase = do
       lockhash = getPBK props (BS8.pack passphrase)
   return Storage { props=Just props', lockhash=Just lockhash, entries=[] }
 
--- | Generate a new inner salt and save the encrypted storage to the given path.
-save :: String -> Storage -> IO ()
-save path storage = do
-  innersalt <- genRandomness (innersalt_length $ fromJust $ props storage)
-  let fcontent = encrypt storage innersalt
-  BS.writeFile path fcontent
-
 -- | Ask the user for a passphrase, then create a Storage with standard props.
 -- Exits on empty passphrase or invalid input.
 newStorage :: IO Storage
@@ -90,6 +83,13 @@ newStorage = do
       exitSuccess
     else do
       initStdStorage passphrase
+
+-- | Generate a new inner salt and save the encrypted storage to the given path.
+save :: String -> Storage -> IO ()
+save path storage = do
+  innersalt <- genRandomness (innersalt_length $ fromJust $ props storage)
+  let fcontent = encrypt storage innersalt
+  BS.writeFile path fcontent
 
 open :: String -> IO Storage
 open path = do

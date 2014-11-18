@@ -14,40 +14,46 @@ Note: This is not markdown.
 * drbg
 * ansi-terminal
 * regex-posix
+* system-filepath
 
 Try `cabal install ...` to get them.
 Try `ghc -XRecordWildCards --make phrases` to compile.
 
 #### Basic Usage
 
-...
+This annotation begins the helptext shown by the program with "phrases help".
+It is extracted by awk in the makefile and embedded into the Haskell code:
+%% BEGIN_HELPTEXT
 
-## How to start
-
-$ main command [arguments]
+$ phrases COMMAND [arguments]
 
 Commands:
 
-version show version number
-init FILE
-        create new container
-open FILE
-        open container for reading and changing
+version     show version number
+init FILE   create new container
+open FILE   open container for reading and changing
 
-resalt  change permanent salt of container
+resalt      change permanent salt of container
 migrate OLDVERSION NEWVERSION
-        migrate container from old version to new one.
-        See version command for supported versions.
-        In general version numbers of containers corresponds to git tag of
-        source code. If you forgot the version number of your storage file,
-        open in hex editor and look for the version=X property.
-dump    open container and dump serialized Storage object to stderr
-        Use with care.
+            migrate container from old version to new one.
+            See version command for supported versions.
+            In general version numbers of containers corresponds to git tag of
+            source code. If you forgot the version number of your storage file,
+            open in hex editor and look for the version=X property.
+dump      open container and dump serialized Storage object to stderr
+            Use with care.
 
-## When running.
+Supported Versions:
+  reading: 1, 2
+  writing: 2
+
+When running:
 
 You can always simply press Enter to clear screen.
 Type help to see list of available commands in prompt.
+
+For more information see the README.
+%% END_HELPTEXT
 
 ## Notes on Security
 
@@ -75,6 +81,7 @@ Type help to see list of available commands in prompt.
 ## Embedded files
 The help text and the GHC version are embedded into the code on compiletime
 by Template Haskell. Have a look at EmbeddedContent.hs
+When the embedded file content changed, run 'make clean' and then 'make'
 
 ## Storage file layout:
 
