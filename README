@@ -6,6 +6,7 @@ Note: This is not markdown.
 * allow changing comments :-P
 * catch userError on wrong posix regexes
 * check regexes ignorecase
+* formular for pbkdf2 rounds
 * license!
 
 ## Requires
@@ -33,14 +34,13 @@ version     show version number
 init FILE   create new container
 open FILE   open container for reading and changing
 
-resalt      change permanent salt of container
 migrate OLDVERSION NEWVERSION
             migrate container from old version to new one.
             See version command for supported versions.
             In general version numbers of containers corresponds to git tag of
             source code. If you forgot the version number of your storage file,
             open in hex editor and look for the version=X property.
-dump      open container and dump serialized Storage object to stderr
+dump FILE   Open container and dump serialized Storage object to file.
             Use with care.
 
 Supported Versions:
@@ -50,24 +50,47 @@ Supported Versions:
 When running:
 
 You can always simply press Enter to clear screen.
-Type help to see list of available commands in prompt.
+Type "help" to see list of available commands in prompt.
 
 For more information see the README.
 %% END_HELPTEXT
 
 ## Commands on prompt
 
-quit
-save
-change-lock
-list
-new
+quit        Exit program (unsupported on some systems, try 'exit')
+exit        Exit program (deprecated, use 'quit')
+stats       Show stats about storage.
+save        Save storage to file again (pretty useless).
+change-lock Change passphrase of container.
+resalt      Change permanent salt of container
+test        Enter a passphrase and test if it matches the current one.
+list REGEX  Search in names of entries for POSIX regex.
+new TYPE    Create new entry, types: phrase, asym, field, data
 
-rename
-plain
-change
-delete
-clipboard http://hackage.haskell.org/package/Hclip
+With selected entry:
+  plain       Show plaintext password on stdout.
+  rename      Choose a new name
+  comment     Change comment of entry
+  delete      Delete entry.
+  clipboard   Copy data to clipboard.
+              http://hackage.haskell.org/package/Hclip
+Type-specific commands:
+  phrase
+    phrase    Change passphrase
+  asym
+    fingerprint  Set fingerprint
+    public    Set public key
+    private   Set private key
+    load FILE Load private key from file
+    put FILE  Save private key to file
+  field
+    input     Set input
+    load FILE Load text data from file, aborts on non ASCII chars.
+    put FILE  Save text to text file.
+  data
+    load FILE Load data from file.
+    put FILE  Save data to file.
+
 
 ## Notes on Security
 

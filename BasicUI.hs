@@ -21,6 +21,12 @@ genRandomness length = do
   let (bytes, _) = throwLeft $ genBytes length gen
   return bytes
 
+invalidinput :: SomeException -> String -> IO ()
+invalidinput e msg = do
+  putStrLn "Invalid input."
+  putStrLn $ "Exception: " ++ (show e)
+  putStrLn msg
+
 -- | Let the user inter input.
 -- Returns (Right String) when the user successfully entered something.
 -- Returns (Left SomeException) when the user didn't want to enter something.
@@ -91,6 +97,7 @@ save path storage = do
   innersalt <- genRandomness (innersalt_length $ fromJust $ props storage)
   let fcontent = encrypt storage innersalt
   BS.writeFile path fcontent
+  putStrLn $ "Saved to "++path
 
 -- | Opens the container at the given path.
 -- Calls exitFailure when storage version is not supported.
@@ -118,7 +125,6 @@ open path = do
   passphrasestr <- getPassphraseOrFail
   (lockhash, hash, serialized) <- case decrypt props (BS8.pack passphrasestr) fcontent' of
     Nothing -> do
-      putStrLn "Inner verifiers don't match."
       putStrLn "Authorization failed."
       exitFailure
     Just x -> return x
@@ -128,6 +134,57 @@ open path = do
       putStrLn "Data corrupted."
       exitFailure
     Just x -> return x
-  putStrLn "Authorization complete."
+  putStrLn "Authorization complete.\n"
   return storage { props=Just props, lockhash=Just lockhash }
+
+printStorageProps (Just StorageProps{..}) = do
+  putStrLn $ "  Version: "++(show version)
+  putStrLn $ "  PBKDF2 rounds: "++(show pbkdf2_rounds)
+  putStrLn $ "  PBKDF2 length: "++(show pbkdf2_length)
+  putStrLn $ "  Salt length: "++(show salt_length)
+  putStrLn $ "  Salt: "++(printHex salt)
+  putStrLn $ "  Inner salt length: "++(show innersalt_length)
+  putStrLn $ "  Inner salt: "++(printHex innersalt)
+
+printStorageStats Storage{..} = do
+  putStrLn $ "Number of entries: "++(show $ length entries)
+  putStrLn "Storage Properties:"
+  printStorageProps props
+
+changelock :: String -> Storage -> Storage
+changelock newpassphrase storage =
+  let newlockhash = getPBK (fromJust $ props storage) (BS8.pack newpassphrase)
+  in storage { lockhash=Just newlockhash }
+
+resalt :: String -> Storage -> IO Storage
+resalt passphrase storage = do
+  let Just oldprops = props storage
+  salt <- genRandomness $ salt_length oldprops
+  let props' = oldprops { salt=salt }
+      newlockhash = getPBK props' (BS8.pack passphrase)
+  return Storage { props=Just props', lockhash=Just newlockhash, entries=entries storage }
+
+
+doesNameExist :: String -> [SEntry] -> Bool
+doesNameExist searchname [] = False
+doesNameExist searchname (entry:entries)
+  | searchname == (name entry) = True
+  | otherwise                  = doesNameExist searchname entries
+
+addEntry :: SEntry -> [SEntry] -> [SEntry]
+addEntry newentry [] = [newentry]
+addEntry newentry (entry:entries)
+  | (name newentry) < (name entry) = newentry:entry:entries
+  | otherwise                      = entry:(addEntry newentry entries)
+
+newPhraseEntry :: String -> String -> Maybe SEntry
+newPhraseEntry name comment = Just (Phrase name comment "") --TODO
+newAsymEntry :: String -> String -> Maybe SEntry
+newAsymEntry name comment = Just (Asym name comment "" "" "") --TODO
+
+changeName :: String -> String -> [SEntry] -> [SEntry]
+changeName oldname newname [] = error "Name not found!"
+changeName oldname newname (entry:entries)
+  | oldname == (name entry) = entry{name=newname}:entries
+  | otherwise               = entry:(changeName oldname newname entries)
 
