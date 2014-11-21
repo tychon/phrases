@@ -14,14 +14,14 @@ import CryptoBackend
 import BasicUI
 import EmbeddedContent
 
-currentversion = 2
-
 data Prompt = Prompt { path :: String, storage :: Storage }
 
 main = do
   putStrLn "This is your passphrase storage manager."
+  -- set up signal handler for user interrupt Ctrl-C
   tid <- myThreadId
   installHandler keyboardSignal (Catch (throwTo tid UserInterrupt)) Nothing
+  -- now parse commands
   args <- getArgs
   parseargs args
 
@@ -67,6 +67,18 @@ parseargs _ = do
   putStrLn "No valid command given. Try 'help'."
   exitFailure
 
-prompt (Prompt path storage) = do
+prompt p@(Prompt path storage) = do
+  putStr "> "
+  ans <- getPromptAns
+  case ans of
+    Left e -> do
+      putStrLn $ "Invalid input: " ++ (show e)
+      prompt p
+    Right cmd -> do
+      storage' <- prompthandle p (words cmd)
+      prompt p{storage=storage'}
   exitFailure
+
+prompthandle :: Prompt -> [String] -> IO Storage
+prompthandle p [] = return (storage p)
 

@@ -1,4 +1,6 @@
-all: embedded-helptext embedded-ghcversion
+.PHONY: main test clear
+
+main: embedded-helptext embedded-ghcversion
 	ghc -XTemplateHaskell -XRecordWildCards phrases -o phrases
 
 embedded-helptext: README
@@ -7,6 +9,10 @@ embedded-helptext: README
 embedded-ghcversion: embedded-ghcversion
 	ghc --numeric-version > embedded-ghcversion
 
+test:
+	ghc -XRecordWildCards test -o test
+	./test
+
 clear:
-	rm -f *.hi *.o embedded-ghcversion embedded-helptext phrases
+	rm -f *.hi *.o embedded-ghcversion embedded-helptext phrases test
 

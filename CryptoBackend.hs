@@ -7,11 +7,14 @@ import Numeric ( showHex )
 import Data.ByteString ( ByteString )
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS8 ( singleton, unpack, pack, elemIndex )
+import Text.Read ( readMaybe )
 -- crypto
 import Crypto.Hash.SHA256 ( hash )
 import Crypto.PBKDF( sha512PBKDF2 )
 import Crypto.Random.DRBG
 import Data.Bits( xor )
+
+currentversion = 2 :: Int
 
 -- legacy storage type
 data StorageLegacy1 = StorageLegacy1 {
@@ -92,13 +95,14 @@ checkStorageProps StorageProps{..}
     = False
 
 -- | Read the StorageProps from file content.
--- Returns the parsed Storage Props and the remaining content.
+-- Returns the Maybe StorageProps and the remaining content.
+-- Returns Nothing when read failed.
 -- Don't forget to call checkStorageProps.
-readProps :: ByteString -> (StorageProps, ByteString)
+readProps :: ByteString -> (Maybe StorageProps, ByteString)
 readProps fcontent =
   let propsend = fromJust $ BS8.elemIndex '\0' fcontent -- search for first nullbyte in file
       (propsstr, fcontent') = (BS.take propsend fcontent, BS.drop (propsend+1) fcontent)
-      props = read (BS8.unpack propsstr) :: StorageProps
+      props = readMaybe (BS8.unpack propsstr) :: Maybe StorageProps
   in (props, fcontent')
 
 -- | Decrypt an container when you have its props.
@@ -131,7 +135,7 @@ checkHash readhash plaintext =
   let texthash = hash plaintext
   in if readhash /= texthash
       then Nothing
-      else Just $ read $ BS8.unpack plaintext
+      else readMaybe $ BS8.unpack plaintext
 
 -- | Encrypts the storage with its containing properties and an extra innersalt.
 -- You have to generate a newinnersalt yourself because it is an IO operation.
@@ -147,7 +151,8 @@ encrypt storage newinnersalt =
       cipherlen = (BS.length plaintext) + 2 * (BS.length texthash)
       (cipher, _) = throwLeft $ genBytes cipherlen gen
       -- put together full plaintext
-      fullplaintext = BS.append texthash $ BS.append texthash plaintext
+      fullplaintext = assert (BS.length texthash == 32) (BS.append texthash $ BS.append texthash plaintext)
       encrypted = BS.pack $ BS.zipWith xor fullplaintext cipher
-  in BS.append (BS8.pack $ show sprops) $ BS.append nullbytestring encrypted
+      container = BS.append (BS8.pack $ show sprops) $ BS.append nullbytestring encrypted
+  in container
 

@@ -2,5 +2,6 @@
 *.o
 
 phrases
+test
 embedded-ghcversion
 embedded-helptext

@@ -55,6 +55,20 @@ Type help to see list of available commands in prompt.
 For more information see the README.
 %% END_HELPTEXT
 
+## Commands on prompt
+
+quit
+save
+change-lock
+list
+new
+
+rename
+plain
+change
+delete
+clipboard http://hackage.haskell.org/package/Hclip
+
 ## Notes on Security
 
 * Since Haskell trades memory for speed, your passwords may end up all over
@@ -115,7 +129,7 @@ How to decrypt:
     * check if the two hashes match
   * checkHash
     * check if one hash and the SHA256 of the plaintext storage data match
-    * use 'read' to cast String to Storage
+    * use 'readMaybe' to cast String to Storage
   * set lockhash and props in Storage
 
 How to encrypt:
