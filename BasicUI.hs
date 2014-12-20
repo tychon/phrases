@@ -174,8 +174,8 @@ doesNameExist searchname (entry:entries)
 addEntry :: SEntry -> [SEntry] -> [SEntry]
 addEntry newentry [] = [newentry]
 addEntry newentry (entry:entries)
-  | (name newentry) < (name entry) = newentry:entry:entries
-  | otherwise                      = entry:(addEntry newentry entries)
+  | newentry < entry = newentry:entry:entries
+  | otherwise        = entry:(addEntry newentry entries)
 
 newPhraseEntry :: String -> String -> Maybe SEntry
 newPhraseEntry name comment = Just (Phrase name comment "") --TODO

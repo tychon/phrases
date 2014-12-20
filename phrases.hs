@@ -70,6 +70,8 @@ parseargs ["open", pathname] = do
       putStrLn "Enter empty line to clear screen."
       prompt (Prompt pathname NoPromptInfo storage)
 
+--TODO other commands
+
 parseargs _ = do
   putStrLn "No valid command given. Try 'help'."
   exitFailure
@@ -172,7 +174,7 @@ prompthandle p@(Prompt _ _ storage) ["list"] = do
 --
 
 prompthandle p@(Prompt path _ storage) ("new":typename:[])
-  | typename `elem` ["phrase", "asym"] = do
+  | typename `elem` ["phrase", "asym", "field", "data"] = do
       putStr "Name: "
       name <- getPromptAns
       case name of

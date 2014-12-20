@@ -56,6 +56,14 @@ data SEntry =
       private :: String }
   deriving (Show, Read)
 
+instance Eq SEntry where
+  Phrase n1 _ _ == Phrase n2 _ _ = n1 == n2
+  Asym n1 _ _ _ _ == Asym n2 _ _ _ _ = n1 == n2
+instance Ord SEntry where
+  Phrase n1 _ _ <= Phrase n2 _ _ = n1 <= n2
+  Phrase{} <= _ = True
+  Asym n1 _ _ _ _ <= Asym n2 _ _ _ _ = n1 <= n2
+
 -- | Simply creates a ByteString containing one NUL character.
 nullbytestring :: ByteString
 nullbytestring = BS8.singleton '\0'
