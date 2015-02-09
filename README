@@ -12,6 +12,7 @@
 * formular for pbkdf2 rounds
 * license!
 
+For more TODOs use `git grep TODO`
 
 ## Requires
 
@@ -20,6 +21,7 @@
 * ansi-terminal
 * regex-tdfa
 * system-filepath
+* hclip (also requires xclip or xsel on linux)
 
 Try `cabal install ...` to get them.
 Use `make` to compile.
@@ -84,17 +86,19 @@ With selected entry:
   rename      Choose a new name
   comment     Change comment of entry
   delete      Delete entry.
-  clipboard   Copy data to clipboard.
-              http://hackage.haskell.org/package/Hclip
+  clear       Clear clipboard
+
 Type-specific commands:
   phrase
-    phrase    Change passphrase
+    phrase          Change passphrase
+    clipboard | cb  Copy data to clipboard.
   asym
     fingerprint  Set fingerprint
-    public    Set public key
-    private   Set private key
-    load FILE Load private key from file
-    put FILE  Save private key to file
+    load FILE    Load private key from file
+    put FILE     Save private key to file
+    fprintcb     Put fingerprint into clipboard
+    privcb       Put private key into clipboard
+    pubcb        Put public key into clipboard
   field
     input     Set input
     load FILE Load text data from file, aborts on non ASCII chars.

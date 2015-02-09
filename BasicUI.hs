@@ -178,10 +178,8 @@ resalt passphrase storage = do
 -- Prompt Functions
 
 -- | Returns all entries whose names match the given regex.
--- TODO refactor with filter function
 filterEntries :: String -> [SEntry] -> [SEntry]
-filterEntries regex [] = []
-filterEntries regex (entry:list) =
+filterEntries regex entries =
   let re = makeRegexOpts CompOption {
                            caseSensitive=False
                          , multiline=False
@@ -189,9 +187,7 @@ filterEntries regex (entry:list) =
                          , newSyntax=True
                          , lastStarGreedy=True
                          } defaultExecOpt regex
-  in if match re (name entry)
-       then entry:(filterEntries regex list)
-       else filterEntries regex list
+  in filter (\e -> match re (name e)) entries
 
 -- | Searches for given name in the list of entries.
 doesNameExist :: String -> [SEntry] -> Bool

@@ -13,6 +13,7 @@ import Data.Maybe ( fromJust )
 import qualified Data.ByteString.Char8 as BS8
 import qualified Data.ByteString as BS
 import Text.Regex.TDFA
+import System.Hclip
 
 import CryptoBackend
 import BasicUI
@@ -73,7 +74,6 @@ parseargs ["open", pathname] = do
 
 --TODO other commands
 -- migrate, dump
-
 
 parseargs _ = do
   putStrLn "No valid command given. Try 'help'."
@@ -202,6 +202,9 @@ prompthandle p@(Prompt _ _ storage) ("list":regex:[]) = do
 
 -- You find the select function in the last prompthandle pattern.
 
+-- | The prompt command `new TYPE`
+-- Asks user for name and comment for the new entry and then calls respective
+-- BasicUI new... functions for different types.
 prompthandle p@(Prompt path _ storage) ("new":typename:[])
   | typename `elem` ["phrase", "asym", "field", "data"] = do
       name <- getUniqueName (entries storage)
@@ -231,6 +234,7 @@ prompthandle p@(Prompt path _ storage) ("new":typename:[])
       putStrLn "Unknown type."
       return p
 
+-- | Print some information about the currently selected entry.
 prompthandle p@(Prompt _ (PromptEntry entry) _) ("plain":[]) = do
   putStrLn $ "Name: " ++ (name entry)
   putStrLn $ "Comment: " ++ (comment entry)
@@ -272,7 +276,32 @@ prompthandle p@(Prompt path (PromptEntry entry) storage) ("comment":[]) = do
       putStrLn "Comment changed."
       return p{ storage=newstorage }
 
---TODO command clipboard/cb
+prompthandle p ("clear":[]) = do
+  setClipboard ""
+  putStrLn "Clipboard cleared."
+  return p
+
+prompthandle p ("cb":[]) =
+  prompthandle p ["clipboard"]
+prompthandle p@(Prompt _ (PromptEntry (Phrase _ _ pw)) _) ("clipboard":[]) = do
+  setClipboard pw
+  putStrLn "Password put into clipboard."
+  return p
+
+prompthandle p@(Prompt _ (PromptEntry (Asym _ _ fprint _ _)) _) ("fprintcb":[]) = do
+  setClipboard fprint
+  putStrLn "Fingerprint put into clipboard."
+  return p
+
+prompthandle p@(Prompt _ (PromptEntry (Asym _ _ _ pub _)) _) ("pubcb":[]) = do
+  setClipboard pub
+  putStrLn "Public key put into clipboard."
+  return p
+
+prompthandle p@(Prompt _ (PromptEntry (Asym _ _ _ _ priv)) _) ("privcb":[]) = do
+  setClipboard priv
+  putStrLn "PRIVATE KEY PUT INTO CLIPBOARD!"
+  return p
 
 prompthandle p@(Prompt path (PromptEntry entry) storage) ("delete":[]) = do
   let oldname = (name entry)
