@@ -249,7 +249,7 @@ prompthandle p@(Prompt path (PromptEntry entry) storage) ("rename":[]) = do
   case newname of
     Nothing -> return p
     Just newname -> do
-      let list' = deleteEntry (name entry) (entries storage)
+      let list' = deleteEntry entry (entries storage)
           newentry = entry{ name=newname }
           newentries = addEntry newentry list'
           newstorage = storage{ entries=newentries }
@@ -266,7 +266,7 @@ prompthandle p@(Prompt path (PromptEntry entry) storage) ("comment":[]) = do
       invalidinput e "" >> return p
     Right com -> do
       let newentry = entry{ comment=com }
-          newentries = replaceEntry (name entry) newentry (entries storage)
+          newentries = replaceEntry newentry (entries storage)
           newstorage = storage{ entries=newentries }
       save path newstorage
       putStrLn "Comment changed."
@@ -275,11 +275,11 @@ prompthandle p@(Prompt path (PromptEntry entry) storage) ("comment":[]) = do
 --TODO command clipboard/cb
 
 prompthandle p@(Prompt path (PromptEntry entry) storage) ("delete":[]) = do
-  let n = (name entry)
-      newlist = deleteEntry n (entries storage)
+  let oldname = (name entry)
+      newlist = deleteEntry entry (entries storage)
       newstorage = storage{ entries=newlist }
   save path newstorage
-  putStrLn $ "Deleted: " ++ n
+  putStrLn $ "Deleted: " ++ oldname
   return p{ info=NoPromptInfo, storage=newstorage }
 
 prompthandle p@(Prompt _ (PromptList entries) storage) (other:[]) = do

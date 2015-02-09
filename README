@@ -1,15 +1,17 @@
-
-Note: This is not markdown.
+                                 ###########
+                                 # phrases #
+                                 ###########
 
 ## TODO
 
 * make resalt and change-lock more user-friendly "safe"
-
+* README intro
 * allow changing comments :-P
 * catch userError on wrong posix regexes
 * check regexes ignorecase
 * formular for pbkdf2 rounds
 * license!
+
 
 ## Requires
 
@@ -20,7 +22,13 @@ Note: This is not markdown.
 * system-filepath
 
 Try `cabal install ...` to get them.
-Try `ghc -XRecordWildCards --make phrases` to compile.
+Use `make` to compile.
+
+
+## Short Intro
+
+another TODO
+
 
 #### Basic Usage
 
@@ -110,8 +118,8 @@ Type-specific commands:
 * The randomness comes from System.Crypto.Random which uses your systems
   secure entropy. Make sure your system can provide secure entropy in the
   way required. This module seems to be untested on Windows. Refer to doc.
-* Don't overdo the security here. You are going to post the password anywhere
-  in your crappy browser.
+* Don't overdo the security here. You are going to post the password
+  in your crappy browser anyways.
 
 #### Under The Hood
 ## Haskell coding style:
@@ -181,6 +189,7 @@ How to encrypt:
 ## Storage Data Type
 
 All salts, hashes and data written to a file are saved as ByteStrings.
+TODO: move to CryptoBackend.hs code
 
 data StorageProps = StorageProps {
   version :: Int

@@ -80,6 +80,10 @@ initStdStorage passphrase = do
       lockhash = getPBK props' (BS8.pack passphrase)
   return Storage { props=Just props', lockhash=Just lockhash, entries=[] }
 
+
+--------------------------------------------------------------------------------
+-- Functions for cmd line commands
+
 -- | Ask the user for a passphrase, then create a Storage with standard props.
 -- Exits on empty passphrase or invalid input.
 newStorage :: IO Storage
@@ -152,11 +156,15 @@ printStorageStats Storage{..} = do
   putStrLn "Storage Properties:"
   printStorageProps props
 
+-- | Change the passphrase of the storage
+-- The lockhash PBKDF2 is recalculated so it takes lazy seconds.
 changelock :: String -> Storage -> Storage
 changelock newpassphrase storage =
   let newlockhash = getPBK (fromJust $ props storage) (BS8.pack newpassphrase)
   in storage { lockhash=Just newlockhash }
 
+-- | Change the outer salt of the storage.
+-- Also recalculates the PBKDF2 and takes lazy seconds.
 resalt :: String -> Storage -> IO Storage
 resalt passphrase storage = do
   let Just oldprops = props storage
@@ -166,6 +174,11 @@ resalt passphrase storage = do
   return Storage { props=Just props', lockhash=Just newlockhash, entries=entries storage }
 
 
+--------------------------------------------------------------------------------
+-- Prompt Functions
+
+-- | Returns all entries whose names match the given regex.
+-- TODO refactor with filter function
 filterEntries :: String -> [SEntry] -> [SEntry]
 filterEntries regex [] = []
 filterEntries regex (entry:list) =
@@ -180,14 +193,15 @@ filterEntries regex (entry:list) =
        then entry:(filterEntries regex list)
        else filterEntries regex list
 
-
-
+-- | Searches for given name in the list of entries.
 doesNameExist :: String -> [SEntry] -> Bool
 doesNameExist searchname [] = False
 doesNameExist searchname (entry:entries)
   | searchname == (name entry) = True
   | otherwise                  = doesNameExist searchname entries
 
+-- | Ask the user for a name and check if its valid and unique.
+-- Returns Just name if everything worked out, Nothing otherwise.
 getUniqueName :: [SEntry] -> IO (Maybe String)
 getUniqueName existing = do
   putStr "Name: "
@@ -204,12 +218,15 @@ getUniqueName existing = do
           putStrLn "Name must be matching ^[a-zA-Z0-9_-]+$ ."
           return Nothing
 
+-- | Add an entry at the right place to maintain lexicographic order.
 addEntry :: SEntry -> [SEntry] -> [SEntry]
 addEntry newentry [] = [newentry]
 addEntry newentry (entry:entries)
   | newentry < entry = newentry:entry:entries
   | otherwise        = entry:(addEntry newentry entries)
 
+-- | Create a new Phrase object.
+-- Asks user for password.
 newPhraseEntry :: String -> String -> IO (Maybe SEntry)
 newPhraseEntry name comment = do
   passwd <- getPassphrase
@@ -217,6 +234,8 @@ newPhraseEntry name comment = do
     Left e -> invalidinput e "" >> return Nothing
     Right passwd -> return $ Just (Phrase name comment passwd)
 
+-- | Create a new Asym object for asymmetric keys
+-- Asks user for fingerprint, pub and private key left empty.
 newAsymEntry :: String -> String -> IO (Maybe SEntry)
 newAsymEntry name comment = do
   putStr "Fingerprint: "
@@ -225,15 +244,17 @@ newAsymEntry name comment = do
     Left e -> invalidinput e "" >> return Nothing
     Right fprint -> return $ Just (Asym name comment fprint "" "")
 
-replaceEntry :: String -> SEntry -> [SEntry] -> [SEntry]
-replaceEntry _ _ [] = error "Entry not found."
-replaceEntry searchname newentry (entry:entries)
-  | searchname == (name entry) = newentry:entries
-  | otherwise                  = entry:(replaceEntry searchname newentry entries)
+-- | Replace an existing Entry with a new one. Throws error if not found.
+replaceEntry :: SEntry -> [SEntry] -> [SEntry]
+replaceEntry _ [] = error "Entry not found."
+replaceEntry repl (entry:entries)
+  | (name repl) == (name entry) = repl:entries
+  | otherwise                   = entry:(replaceEntry repl entries)
 
-deleteEntry :: String -> [SEntry] -> [SEntry]
-deleteEntry searchname [] = []
-deleteEntry searchname (entry:entries)
-  | searchname == (name entry) = entries
-  | otherwise                  = entry:(deleteEntry searchname entries)
+-- | Delete entry from list. Throws error if not found.
+deleteEntry :: SEntry -> [SEntry] -> [SEntry]
+deleteEntry _ [] = error "Entry not found."
+deleteEntry del (entry:entries)
+  | (name del) == (name entry) = entries
+  | otherwise                  = entry:(deleteEntry del entries)
 
