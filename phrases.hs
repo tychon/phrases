@@ -12,12 +12,13 @@ import Control.Concurrent ( myThreadId )
 import Data.Maybe ( fromJust )
 import qualified Data.ByteString.Char8 as BS8
 import qualified Data.ByteString as BS
+import Text.Regex.TDFA
 
 import CryptoBackend
 import BasicUI
 import EmbeddedContent
 
-data PromptInfo = PromptList [SEntry] | PromptName SEntry | NoPromptInfo
+data PromptInfo = PromptList [SEntry] | PromptEntry SEntry | NoPromptInfo
 data Prompt = Prompt { path :: String, info :: PromptInfo, storage :: Storage }
 
 main = do
@@ -79,18 +80,20 @@ parseargs _ = do
   exitFailure
 
 listEntries :: [SEntry] -> IO ()
-listEntries [] = putStrLn ""
-listEntries (entry:entries) = do
+listEntries entries = listEntries' 1 entries
+listEntries' :: Int -> [SEntry] -> IO ()
+listEntries' _ [] = putStrLn ""
+listEntries' line (entry:entries) = do
   case entry of
-    Phrase name comment _ -> putStrLn $ "phrase " ++ name
-    Asym name comment _ _ _ -> putStrLn $ "asym   " ++ name
-  listEntries entries
+    Phrase name comment _ -> putStrLn $   (show line) ++ "\tphrase " ++ name
+    Asym name comment _ _ _ -> putStrLn $ (show line) ++ "\tasym   " ++ name
+  listEntries' (line+1) entries
 
 prompt p@(Prompt path info storage) = do
   case info of
     NoPromptInfo -> putStr "\n> "
     PromptList _ -> putStr "\nSELECT > "
-    PromptName entry -> putStr $ "\n" ++ (name entry) ++ " > "
+    PromptEntry entry -> putStr $ "\n" ++ (name entry) ++ " > "
   ans <- getPromptAns
   case ans of
     Left e -> do
@@ -173,14 +176,23 @@ prompthandle p@(Prompt path _ storage) ["test"] = do
 
 prompthandle p@(Prompt _ _ storage) ["list"] = do
   let newlist = entries storage
-  listEntries newlist
-  return p { info=PromptList newlist }
+  if null newlist
+    then do
+      putStrLn "Empty storage."
+      return p{ info=NoPromptInfo }
+    else do
+      listEntries newlist
+      return p { info=PromptList newlist }
 
 prompthandle p@(Prompt _ _ storage) ("list":regex:[]) = do
   let newlist = filterEntries regex (entries storage)
-  listEntries newlist
-  return p { info=PromptList newlist }
-
+  if null newlist
+    then do
+      putStrLn "No matching entries found."
+      return p{ info=NoPromptInfo }
+    else do
+      listEntries newlist
+      return p { info=PromptList newlist }
 
 prompthandle p@(Prompt path _ storage) ("new":typename:[])
   | typename `elem` ["phrase", "asym", "field", "data"] = do
@@ -214,12 +226,34 @@ prompthandle p@(Prompt path _ storage) ("new":typename:[])
                           newstorage = storage { entries=newentrylist }
                       save path newstorage
                       putStrLn "New entry saved."
-                      return p { info=PromptName newentry, storage=newstorage }
+                      return p { info=PromptEntry newentry, storage=newstorage }
   | otherwise = do
       putStrLn "Unknown type."
       return p
 
 --TODO other commands
+-- rename, comment delete clipboard/cb
+
+prompthandle p@(Prompt path (PromptEntry entry) storage) ("delete":[]) = do
+  let n = (name entry)
+      newlist = deleteEntry n (entries storage)
+      newstorage = storage{ entries=newlist }
+  save path newstorage
+  putStrLn $ "Deleted: " ++ n
+  return p{ info=NoPromptInfo, storage=newstorage }
+
+prompthandle p@(Prompt _ (PromptList entries) storage) (other:[]) = do
+  if other =~ "^[0-9]+$"
+    then do
+      let idx = (read other :: Int) - 1
+      if idx >= (length entries) || idx < 0
+        then putStrLn "Index out of range." >> return p
+        else do
+          let entry = entries !! idx
+          putStrLn $ "Name: " ++ (name entry)
+          putStrLn $ "Comment: " ++ (comment entry)
+          return p{ info=PromptEntry entry }
+    else prompthandle p ["unknown command"]
 
 prompthandle p _ = do
   clearScreen

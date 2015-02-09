@@ -203,3 +203,9 @@ changeName oldname newname (entry:entries)
   | oldname == (name entry) = entry{name=newname}:entries
   | otherwise               = entry:(changeName oldname newname entries)
 
+deleteEntry :: String -> [SEntry] -> [SEntry]
+deleteEntry searchname [] = []
+deleteEntry searchname (entry:entries)
+  | searchname == (name entry) = entries
+  | otherwise                  = entry:(deleteEntry searchname entries)
+
