@@ -58,11 +58,14 @@ data SEntry =
 
 instance Eq SEntry where
   Phrase n1 _ _ == Phrase n2 _ _ = n1 == n2
+  Phrase{} == _ = False
   Asym n1 _ _ _ _ == Asym n2 _ _ _ _ = n1 == n2
+  Asym{} == _ = False
 instance Ord SEntry where
   Phrase n1 _ _ <= Phrase n2 _ _ = n1 <= n2
   Phrase{} <= _ = True
   Asym n1 _ _ _ _ <= Asym n2 _ _ _ _ = n1 <= n2
+  Asym{} <= Phrase{} = False
 
 -- | Simply creates a ByteString containing one NUL character.
 nullbytestring :: ByteString

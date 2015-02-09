@@ -200,6 +200,8 @@ prompthandle p@(Prompt _ _ storage) ("list":regex:[]) = do
       listEntries newlist
       return p { info=PromptList newlist }
 
+-- You find the select function in the last prompthandle pattern.
+
 prompthandle p@(Prompt path _ storage) ("new":typename:[])
   | typename `elem` ["phrase", "asym", "field", "data"] = do
       name <- getUniqueName (entries storage)
@@ -214,8 +216,8 @@ prompthandle p@(Prompt path _ storage) ("new":typename:[])
               return p
             Right com -> do
               maybenewentry <- case typename of
-                "phrase" -> return $ newPhraseEntry name com
-                "asym" -> return $ newAsymEntry name com
+                "phrase" -> newPhraseEntry name com
+                "asym" -> newAsymEntry name com
                 _ -> error "Previously unknown type occured ???"
               case maybenewentry of
                 Nothing -> return p
@@ -228,6 +230,19 @@ prompthandle p@(Prompt path _ storage) ("new":typename:[])
   | otherwise = do
       putStrLn "Unknown type."
       return p
+
+prompthandle p@(Prompt _ (PromptEntry entry) _) ("plain":[]) = do
+  putStrLn $ "Name: " ++ (name entry)
+  putStrLn $ "Comment: " ++ (comment entry)
+  case entry of
+    Phrase _ _ phrase -> putStrLn $ "Phrase: " ++ phrase
+    Asym _ _ fprint pub _ -> do
+      putStrLn $ "Fingerprint: " ++ fprint
+      putStrLn $ "Public key:  " ++ pub
+      putStrLn ""
+    -- TODO other types
+  putStrLn "Type newline/ENTER to clear screen."
+  return p
 
 prompthandle p@(Prompt path (PromptEntry entry) storage) ("rename":[]) = do
   newname <- getUniqueName (entries storage)
@@ -242,8 +257,22 @@ prompthandle p@(Prompt path (PromptEntry entry) storage) ("rename":[]) = do
       putStrLn $ "Renamed " ++ (name entry) ++ " to " ++ newname ++ "."
       return p{ info=PromptEntry newentry, storage=newstorage }
 
---TODO other commands
--- rename, comment delete clipboard/cb
+prompthandle p@(Prompt path (PromptEntry entry) storage) ("comment":[]) = do
+  putStrLn $ "Old Comment: " ++ (comment entry)
+  putStr "New comment: "
+  ans <- getPromptAns
+  case ans of
+    Left e -> do
+      invalidinput e "" >> return p
+    Right com -> do
+      let newentry = entry{ comment=com }
+          newentries = replaceEntry (name entry) newentry (entries storage)
+          newstorage = storage{ entries=newentries }
+      save path newstorage
+      putStrLn "Comment changed."
+      return p{ storage=newstorage }
+
+--TODO command clipboard/cb
 
 prompthandle p@(Prompt path (PromptEntry entry) storage) ("delete":[]) = do
   let n = (name entry)

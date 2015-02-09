@@ -210,10 +210,26 @@ addEntry newentry (entry:entries)
   | newentry < entry = newentry:entry:entries
   | otherwise        = entry:(addEntry newentry entries)
 
-newPhraseEntry :: String -> String -> Maybe SEntry
-newPhraseEntry name comment = Just (Phrase name comment "") --TODO
-newAsymEntry :: String -> String -> Maybe SEntry
-newAsymEntry name comment = Just (Asym name comment "" "" "") --TODO
+newPhraseEntry :: String -> String -> IO (Maybe SEntry)
+newPhraseEntry name comment = do
+  passwd <- getPassphrase
+  case passwd of
+    Left e -> invalidinput e "" >> return Nothing
+    Right passwd -> return $ Just (Phrase name comment passwd)
+
+newAsymEntry :: String -> String -> IO (Maybe SEntry)
+newAsymEntry name comment = do
+  putStr "Fingerprint: "
+  ans <- getPromptAns
+  case ans of
+    Left e -> invalidinput e "" >> return Nothing
+    Right fprint -> return $ Just (Asym name comment fprint "" "")
+
+replaceEntry :: String -> SEntry -> [SEntry] -> [SEntry]
+replaceEntry _ _ [] = error "Entry not found."
+replaceEntry searchname newentry (entry:entries)
+  | searchname == (name entry) = newentry:entries
+  | otherwise                  = entry:(replaceEntry searchname newentry entries)
 
 deleteEntry :: String -> [SEntry] -> [SEntry]
 deleteEntry searchname [] = []
