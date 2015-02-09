@@ -11,6 +11,7 @@ import Data.ByteString ( ByteString )
 import qualified Data.ByteString as BS ( readFile, writeFile )
 import qualified Data.ByteString.Char8 as BS8 ( pack, unpack )
 import Crypto.Random.DRBG
+import Text.Regex.TDFA
 
 import CryptoBackend
 
@@ -164,6 +165,20 @@ resalt passphrase storage = do
       newlockhash = getPBK props' (BS8.pack passphrase)
   return Storage { props=Just props', lockhash=Just newlockhash, entries=entries storage }
 
+
+filterEntries :: String -> [SEntry] -> [SEntry]
+filterEntries regex [] = []
+filterEntries regex (entry:list) =
+  let re = makeRegexOpts CompOption {
+                           caseSensitive=False
+                         , multiline=False
+                         , rightAssoc=True
+                         , newSyntax=True
+                         , lastStarGreedy=True
+                         } defaultExecOpt regex
+  in if match re (name entry)
+       then entry:(filterEntries regex list)
+       else filterEntries regex list
 
 doesNameExist :: String -> [SEntry] -> Bool
 doesNameExist searchname [] = False

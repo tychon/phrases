@@ -176,8 +176,11 @@ prompthandle p@(Prompt _ _ storage) ["list"] = do
   listEntries newlist
   return p { info=PromptList newlist }
 
---prompthandle p@(Prompt _ _ storage) ("list":regex:[]) = do
---
+prompthandle p@(Prompt _ _ storage) ("list":regex:[]) = do
+  let newlist = filterEntries regex (entries storage)
+  listEntries newlist
+  return p { info=PromptList newlist }
+
 
 prompthandle p@(Prompt path _ storage) ("new":typename:[])
   | typename `elem` ["phrase", "asym", "field", "data"] = do

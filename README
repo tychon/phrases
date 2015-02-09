@@ -16,7 +16,7 @@ Note: This is not markdown.
 * pbkdf
 * drbg
 * ansi-terminal
-* regex-posix
+* regex-tdfa
 * system-filepath
 
 Try `cabal install ...` to get them.
