@@ -100,7 +100,7 @@ save path storage = do
   putStrLn $ "Saved to "++path
 
 -- | Opens the container at the given path.
--- Calls exitFailure when storage version is not supported.
+-- Calls exitFailure if anything goes wrong.
 open :: String -> IO Storage
 open path = do
   fcontent <- BS.readFile path
@@ -128,13 +128,13 @@ open path = do
       putStrLn "Authorization failed."
       exitFailure
     Just x -> return x
+  putStrLn "Authorization complete.\n"
   storage <- case checkHash hash serialized of
     Nothing -> do
       putStrLn "Hash doesn't match content."
       putStrLn "Data corrupted."
       exitFailure
     Just x -> return x
-  putStrLn "Authorization complete.\n"
   return storage { props=Just props, lockhash=Just lockhash }
 
 printStorageProps (Just StorageProps{..}) = do

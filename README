@@ -3,6 +3,8 @@ Note: This is not markdown.
 
 ## TODO
 
+* make resalt and change-lock more user-friendly "safe"
+
 * allow changing comments :-P
 * catch userError on wrong posix regexes
 * check regexes ignorecase
@@ -32,6 +34,7 @@ Commands:
 
 version     show version number
 init FILE   create new container
+info FILE   show information (version number) about container
 open FILE   open container for reading and changing
 
 migrate OLDVERSION NEWVERSION
@@ -57,6 +60,7 @@ For more information see the README.
 
 ## Commands on prompt
 
+%% BEGIN_PROMPTHELP
 quit        Exit program (unsupported on some systems, try 'exit')
 exit        Exit program (deprecated, use 'quit')
 stats       Show stats about storage.
@@ -90,7 +94,7 @@ Type-specific commands:
   data
     load FILE Load data from file.
     put FILE  Save data to file.
-
+%% END_PROMPTHELP
 
 ## Notes on Security
 
@@ -177,7 +181,6 @@ How to encrypt:
 ## Storage Data Type
 
 All salts, hashes and data written to a file are saved as ByteStrings.
-Only 
 
 data StorageProps = StorageProps {
   version :: Int

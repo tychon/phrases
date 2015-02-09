@@ -71,6 +71,8 @@ parseargs ["open", pathname] = do
       prompt (Prompt pathname NoPromptInfo storage)
 
 --TODO other commands
+-- migrate, dump
+
 
 parseargs _ = do
   putStrLn "No valid command given. Try 'help'."
@@ -112,7 +114,11 @@ prompthandle p ["quit"] = do
 prompthandle p ["exit"] = do
   clearScreen
   putStrLn "Exit."
-  exitSuccess
+  exitSuccess -- just kidding in the README :-P
+
+prompthandle p ["help"] = do
+  putStr $(prompthelptext)
+  return p
 
 prompthandle p@(Prompt path _ storage) ["stats"] = do
   putStrLn $ "Path: " ++ path

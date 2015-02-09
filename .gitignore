@@ -1,7 +1,7 @@
 *.hi
 *.o
 
+embedded-*
+
 phrases
 test
-embedded-ghcversion
-embedded-helptext

@@ -1,5 +1,5 @@
 
-module EmbeddedContent ( helptext, ghcversion ) where
+module EmbeddedContent ( helptext, prompthelptext, ghcversion ) where
 
 import Language.Haskell.TH
 import Language.Haskell.TH.Syntax (lift)
@@ -13,6 +13,10 @@ embedFile path = lift =<< runIO readStr
 -- | Returns an expression evaluating to the helptext string.
 helptext :: ExpQ
 helptext = embedFile "embedded-helptext"
+
+-- | Returns an expression evaluating to the prompt helptext string.
+prompthelptext :: ExpQ
+prompthelptext = embedFile "embedded-prompthelp"
 
 -- | Returns an expression evaluating to the ghc --numeric-version.
 -- The file "embedded-ghcversion" is created by the makefile target all.
