@@ -180,11 +180,29 @@ filterEntries regex (entry:list) =
        then entry:(filterEntries regex list)
        else filterEntries regex list
 
+
+
 doesNameExist :: String -> [SEntry] -> Bool
 doesNameExist searchname [] = False
 doesNameExist searchname (entry:entries)
   | searchname == (name entry) = True
   | otherwise                  = doesNameExist searchname entries
+
+getUniqueName :: [SEntry] -> IO (Maybe String)
+getUniqueName existing = do
+  putStr "Name: "
+  ans <- getPromptAns
+  case ans of
+    Left e -> invalidinput e "" >> return Nothing
+    Right name -> do
+      if name =~ "^[a-zA-Z0-9_-]+$"
+        then
+          if doesNameExist name existing
+            then putStrLn "Name already assigned." >> return Nothing
+            else return $ Just name
+        else do
+          putStrLn "Name must be matching ^[a-zA-Z0-9_-]+$ ."
+          return Nothing
 
 addEntry :: SEntry -> [SEntry] -> [SEntry]
 addEntry newentry [] = [newentry]
@@ -196,12 +214,6 @@ newPhraseEntry :: String -> String -> Maybe SEntry
 newPhraseEntry name comment = Just (Phrase name comment "") --TODO
 newAsymEntry :: String -> String -> Maybe SEntry
 newAsymEntry name comment = Just (Asym name comment "" "" "") --TODO
-
-changeName :: String -> String -> [SEntry] -> [SEntry]
-changeName oldname newname [] = error "Name not found!"
-changeName oldname newname (entry:entries)
-  | oldname == (name entry) = entry{name=newname}:entries
-  | otherwise               = entry:(changeName oldname newname entries)
 
 deleteEntry :: String -> [SEntry] -> [SEntry]
 deleteEntry searchname [] = []

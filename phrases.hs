@@ -176,60 +176,71 @@ prompthandle p@(Prompt path _ storage) ["test"] = do
 
 prompthandle p@(Prompt _ _ storage) ["list"] = do
   let newlist = entries storage
-  if null newlist
-    then do
+  case length newlist of
+    0 -> do
       putStrLn "Empty storage."
       return p{ info=NoPromptInfo }
-    else do
+    1 -> do
+      putStrLn "Storage contains only one entry."
+      return p{ info=PromptEntry (newlist !! 0) }
+    _ -> do
       listEntries newlist
       return p { info=PromptList newlist }
 
 prompthandle p@(Prompt _ _ storage) ("list":regex:[]) = do
   let newlist = filterEntries regex (entries storage)
-  if null newlist
-    then do
+  case length newlist of
+    0 -> do
       putStrLn "No matching entries found."
       return p{ info=NoPromptInfo }
-    else do
+    1 -> do
+      putStrLn "One match selected."
+      return p{ info=PromptEntry (newlist !! 0) }
+    _ -> do
       listEntries newlist
       return p { info=PromptList newlist }
 
 prompthandle p@(Prompt path _ storage) ("new":typename:[])
   | typename `elem` ["phrase", "asym", "field", "data"] = do
-      putStr "Name: "
-      name <- getPromptAns
+      name <- getUniqueName (entries storage)
       case name of
-        Left e -> do
-          invalidinput e ""
-          return p
-        Right name -> do
-          if doesNameExist name (entries storage)
-            then do
-              putStrLn "Name already assigned."
+        Nothing -> return p
+        Just name -> do
+          putStr "Comment: "
+          com <- getPromptAns
+          case com of
+            Left e -> do
+              invalidinput e ""
               return p
-            else do
-              putStr "Comment: "
-              com <- getPromptAns
-              case com of
-                Left e -> do
-                  invalidinput e ""
-                  return p
-                Right com -> do
-                  maybenewentry <- case typename of
-                    "phrase" -> return $ newPhraseEntry name com
-                    "asym" -> return $ newAsymEntry name com
-                    _ -> error "Previously unknown type occured ???"
-                  case maybenewentry of
-                    Nothing -> return p
-                    Just newentry -> do
-                      let newentrylist = addEntry newentry (entries storage)
-                          newstorage = storage { entries=newentrylist }
-                      save path newstorage
-                      putStrLn "New entry saved."
-                      return p { info=PromptEntry newentry, storage=newstorage }
+            Right com -> do
+              maybenewentry <- case typename of
+                "phrase" -> return $ newPhraseEntry name com
+                "asym" -> return $ newAsymEntry name com
+                _ -> error "Previously unknown type occured ???"
+              case maybenewentry of
+                Nothing -> return p
+                Just newentry -> do
+                  let newentrylist = addEntry newentry (entries storage)
+                      newstorage = storage { entries=newentrylist }
+                  save path newstorage
+                  putStrLn "New entry saved."
+                  return p { info=PromptEntry newentry, storage=newstorage }
   | otherwise = do
       putStrLn "Unknown type."
       return p
+
+prompthandle p@(Prompt path (PromptEntry entry) storage) ("rename":[]) = do
+  newname <- getUniqueName (entries storage)
+  case newname of
+    Nothing -> return p
+    Just newname -> do
+      let list' = deleteEntry (name entry) (entries storage)
+          newentry = entry{ name=newname }
+          newentries = addEntry newentry list'
+          newstorage = storage{ entries=newentries }
+      save path newstorage
+      putStrLn $ "Renamed " ++ (name entry) ++ " to " ++ newname ++ "."
+      return p{ info=PromptEntry newentry, storage=newstorage }
 
 --TODO other commands
 -- rename, comment delete clipboard/cb
