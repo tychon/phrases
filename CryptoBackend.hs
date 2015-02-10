@@ -30,30 +30,43 @@ data SEntryLegacy1 = SEntryLegacy1 {
 
 -- storage type
 data StorageProps = StorageProps {
-  version,
-  salt_length,
-  innersalt_length,
-  pbkdf2_rounds,
-  pbkdf2_length :: Int,
-  salt,
-  innersalt :: ByteString }
-    deriving (Show, Read)
+  version
+    -- The version of the storage file.
+    -- Only version 1 has no StorateProps field.
+, salt_length
+, innersalt_length
+, pbkdf2_rounds
+, pbkdf2_length :: Int
+, salt
+, innersalt :: ByteString
+} deriving (Show, Read)
+
 data Storage = Storage {
-  props :: Maybe StorageProps,
-  lockhash :: Maybe ByteString,
-  entries :: [SEntry] }
-    deriving (Show, Read)
+  props :: Maybe StorageProps
+    -- The storage properties associated to this storage.
+    -- Set to Nothing when Storage is serialized.
+, lockhash :: Maybe ByteString
+    -- The hashed passphrase to the container without the innersalt.
+    -- Derieved by running PBKDF2 on passphrase and salt.
+    -- Set to Nothing when Storage is serialized.
+, entries :: [SEntry]
+    -- The list of entries in the container.
+} deriving (Show, Read)
+
 data SEntry =
-    Phrase {
-      name,
-      comment,
-      phrase :: String }
-  | Asym {
-      name,
-      comment,
-      fingerprint,
-      public,
-      private :: String }
+    Phrase { -- for simple passwords
+      name
+    , comment
+    , phrase :: String }
+  | Asym { -- for asymmetric keys
+      name
+    , comment
+    , fingerprint
+    , public
+    , private :: String }
+  | Field { -- for ascii data
+      name
+    , field :: String }
   deriving (Show, Read)
 
 instance Eq SEntry where

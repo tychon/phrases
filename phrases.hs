@@ -79,6 +79,10 @@ parseargs _ = do
   putStrLn "No valid command given. Try 'help'."
   exitFailure
 
+--------------------------------------------------------------------------------
+-- Prompt commands
+
+-- | Helper function printing a list of entries
 listEntries :: [SEntry] -> IO ()
 listEntries entries = listEntries' 1 entries
 listEntries' :: Int -> [SEntry] -> IO ()
@@ -89,6 +93,7 @@ listEntries' line (entry:entries) = do
     Asym name comment _ _ _ -> putStrLn $ (show line) ++ "\tasym   " ++ name
   listEntries' (line+1) entries
 
+-- | The prompt loop. Exits through exitSuccess in lower functions.
 prompt p@(Prompt path info storage) = do
   case info of
     NoPromptInfo -> putStr "\n> "
@@ -188,6 +193,8 @@ prompthandle p@(Prompt _ _ storage) ["list"] = do
       return p { info=PromptList newlist }
 
 prompthandle p@(Prompt _ _ storage) ("list":regex:[]) = do
+  -- TODO catch errors or
+  -- move to other regex library because TDFA doesn't use exceptions
   let newlist = filterEntries regex (entries storage)
   case length newlist of
     0 -> do

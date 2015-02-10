@@ -1,41 +1,43 @@
-                                 ###########
-                                 # phrases #
-                                 ###########
+### TODO
 
-## TODO
-
-* make resalt and change-lock more user-friendly "safe"
-* README intro
-* allow changing comments :-P
-* catch userError on wrong posix regexes
-* check regexes ignorecase
-* formular for pbkdf2 rounds
+* make resalt and change-lock more user-friendly / "safe"
+* formula for pbkdf2 rounds
+* maybe use ForeignPtr and mlock as suggested in
+  http://stackoverflow.com/questions/11932246/against-cold-boot-attacks-how-to-restrain-sensitive-information-in-haskell
 * license!
 
 For more TODOs use `git grep TODO`
 
-## Requires
+
+# Short Intro
+
+After you've got it to run (see section below) you can create your container with `./phrases init teststorage`. This will ask you for a passphrase and create a file in the current directory. You can then do `./phrases open teststorage` to open the storage and change anything. One important thing: Everytime you change something the storage is saved to disk, so you can't restore anything by killing the program. Also: don't miss the information on security I've posted below.
+
+After you've authorized and the file was decrypted you get a command prompt. There are different prompt symbols. The simplest one is `>` you should then type `list` get a list of all entries or `list hub` to get a list of all entries containing `hub` in their name (case insensitive).
+
+The prompt then changes to `SELECT >` and you should enter a number giving one of the results in the list and the prompt changes to `name >` where `name` is the name of the selected entry. Now you can use the type specific commands (listed in Commands on Prompt) too.
+
+To create a new entry for your github password say `new phrase` then it will ask you for a name. There you should enter something like `tychon@github` so you can recognise this password later. Then enter a comment or leave it empty, then enter your passphrase.
+
+To delete an entry, select it and type delete.
+
+# Install
 
 * pbkdf
 * drbg
 * ansi-terminal
 * regex-tdfa
 * system-filepath
-* hclip (also requires xclip or xsel on linux)
+* hclip (also requires external program xclip or xsel on linux)
 
 Try `cabal install ...` to get them.
 Use `make` to compile.
 
+# Basic Usage
 
-## Short Intro
-
-another TODO
-
-
-#### Basic Usage
-
-This annotation begins the helptext shown by the program with "phrases help".
+This annotation begins the helptext shown by the program with `phrases help`.
 It is extracted by awk in the makefile and embedded into the Haskell code:
+```
 %% BEGIN_HELPTEXT
 
 $ phrases COMMAND [arguments]
@@ -67,9 +69,13 @@ Type "help" to see list of available commands in prompt.
 
 For more information see the README.
 %% END_HELPTEXT
+```
 
-## Commands on prompt
+### Commands on prompt
 
+This annotation begins the helptext shown if you type `help` in the programs
+command prompt. It's embedded on compiletime into the haskell code.
+```
 %% BEGIN_PROMPTHELP
 quit        Exit program (unsupported on some systems, try 'exit')
 exit        Exit program (deprecated, use 'quit')
@@ -107,8 +113,9 @@ Type-specific commands:
     load FILE Load data from file.
     put FILE  Save data to file.
 %% END_PROMPTHELP
+```
 
-## Notes on Security
+# Notes on Security
 
 * Since Haskell trades memory for speed, your passwords may end up all over
   your memory. You should check if your system applies appropriate memory
@@ -125,37 +132,40 @@ Type-specific commands:
 * Don't overdo the security here. You are going to post the password
   in your crappy browser anyways.
 
-#### Under The Hood
-## Haskell coding style:
+
+# Under The Hood
+
+### Haskell coding style:
 * No exceptions in pure code.
 * Document impure behaviour ( exitFailiure, exitSuccess, error, ... )
 * Many else I don't know yet, still learning ...
 
-## Embedded files
-The help text and the GHC version are embedded into the code on compiletime
+### Embedded files
+The help texts and the GHC version are embedded into the code on compiletime
 by Template Haskell. Have a look at EmbeddedContent.hs
 When the embedded file content changed, run 'make clean' and then 'make'
 
-## Storage file layout:
-
+### Storage file layout:
+```
 File:
 |StorageProps|0|hash|hash|representation of Storage data type|
 |plaintext     |encrypted                                    |
+```
 
 * length of one hash (SHA256): 32 bytes
-
-StorageProps contains i.a.
-  * length of salt: min 16 bytes
-  * length of innersalt: min 16 bytes
+* length of salt: min 16 bytes
+* length of innersalt: min 16 bytes
 
 The salt is not changed. Use 'resalt' to get new salt.
 The innersalt is changed every time the file is saved to make sure the byte
 stream from the DRBG is not the same as the previous one.
 The two hashes are compared to see if the passphrase was correct, then the
-contained serialized storage's hash is checked against one of them.
-The lockhash is generated by running PBKDF2 on passphrase and salt.
+contained serialized storage's hash is checked against one of them to ensure
+the data is not corrupted. The lockhash is generated by running PBKDF2 on
+passphrase and salt.
 
 How to decrypt:
+
   * readProps
     * read StorageProps
   * checkStorageProps
@@ -172,14 +182,15 @@ How to decrypt:
   * set lockhash and props in Storage
 
 How to encrypt:
+
   * clear props and lockhash from storage
   * generate hash of serialized storage
   * generate innersalt
   * seed HashDRBG with lockhash concatenated with new innersalt
-  * construct plaintext to be encrypted: concat two verifiers and 'show storage'
+  * construct plaintext to be encrypted: concat two hashes and 'show storage'
   * xor byte stream from DRBG with plaintext
 
-## The modules
+### The modules
 
 * CryptoBackend (CryptoBackend.hs)
   All pure functions for en- and decryption.
@@ -189,61 +200,4 @@ How to encrypt:
   Provide the helptext and the ghc version by loading it on compiletime.
 * Main (phrases.hs)
   Parsing of arguments, the prompt and tying together the basic IO things.
-
-## Storage Data Type
-
-All salts, hashes and data written to a file are saved as ByteStrings.
-TODO: move to CryptoBackend.hs code
-
-data StorageProps = StorageProps {
-  version :: Int
-    The version of the storage file.
-    Only version 1 has no StorateProps field.
-  salt_length :: Int
-    The length of the salt, min: 16
-  innersalt_length :: Int
-    The length of the inner salt, min: 16
-  pbkdf2_rounds :: Int
-    The number of rounds to run the PBKDF, min: 150000
-  pbkdf2_length :: Int
-    The length of the generated key, min: 64
-  salt :: ByteString
-    The actual salt.
-  innersalt :: ByteString
-    The actual inner salt.
-
-Storage
-  props :: Maybe StorageProps
-    The storage properties associated to this storage.
-    Set to Nothing when Storage is serialized.
-  lockhash :: Maybe ByteString
-    The hashed passphrase to the container without the innersalt.
-    Derieved by running PBKDF2 on passphrase and salt.
-    Set to Nothing when Storage is serialized.
-  [SEntry]
-    The list of entries in the container.
-
-SEntry
-  Phrase
-    name :: String
-      The name of the passphrase, used for listing.
-    comment :: String
-      An arbitrary comment.
-    phrase :: String
-  Asym
-    name :: String
-      The name of the keypair, used for listing
-    comment :: String
-      An arbitrary comment.
-    fingerprint :: String
-      The connected fingerprint.
-    public :: String
-      The public key
-    private :: String
-      The private key
-  Field
-    name :: String
-      The name of the field, used for listing
-    field :: String
-      Any printable ASCII data.
 
