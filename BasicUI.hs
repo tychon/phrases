@@ -9,7 +9,7 @@ import Data.Char ( isPrint )
 import Data.ByteString.Char8 ( pack )
 import Data.ByteString ( ByteString )
 import qualified Data.ByteString as BS ( readFile, writeFile )
-import qualified Data.ByteString.Char8 as BS8 ( pack, unpack )
+import qualified Data.ByteString.Char8 as BS8 ( pack, unpack, empty )
 import Crypto.Random.DRBG
 import Text.Regex.TDFA
 
@@ -241,6 +241,10 @@ newAsymEntry name comment = do
   case ans of
     Left e -> invalidinput e "" >> return Nothing
     Right fprint -> return $ Just (Asym name comment fprint "" "")
+
+-- | Create a new field entry with empty content.
+newFieldEntry :: String -> String -> IO (Maybe SEntry)
+newFieldEntry name comment = do return $ Just (Field name comment empty)
 
 -- | Replace an existing Entry with a new one. Throws error if not found.
 replaceEntry :: SEntry -> [SEntry] -> [SEntry]

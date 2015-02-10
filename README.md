@@ -19,6 +19,8 @@ The prompt then changes to `SELECT >` and you should enter a number giving one o
 
 To create a new entry for your github password say `new phrase` then it will ask you for a name. There you should enter something like `tychon@github` so you can recognise this password later. Then enter a comment or leave it empty, then enter your passphrase.
 
+If you wan't to know a password use `name > plain` to show in terminal or `name > clipboard` to copy to clipboard without printing in plaintext to your terminal. The clipboard commands vary for the different data types.
+
 To delete an entry, select it and type delete.
 
 # Install
@@ -106,10 +108,7 @@ Type-specific commands:
     privcb       Put private key into clipboard
     pubcb        Put public key into clipboard
   field
-    input     Set input
-    load FILE Load text data from file, aborts on non ASCII chars.
-    put FILE  Save text to text file.
-  data
+    input     Input text in terminal.
     load FILE Load data from file.
     put FILE  Save data to file.
 %% END_PROMPTHELP

@@ -105,9 +105,17 @@ listEntries entries = listEntries' 1 entries
 listEntries' :: Int -> [SEntry] -> IO ()
 listEntries' _ [] = putStrLn ""
 listEntries' line (entry:entries) = do
+  -- one line: type (7), num (4), name (17), comment (80-28=52)
+  let linestr = show line
+      paddedline = (take (3 - length linestr) $ repeat ' ') ++ linestr
+      name' = take 15 $ name entry
+      paddedname = name' ++ (take (17 - length name') $ repeat ' ')
+      com = take 52 $ comment entry
+      whole = paddedline ++ " " ++ paddedname ++ com
   case entry of
-    Phrase name comment _ -> putStrLn $   (show line) ++ "\tphrase " ++ name
-    Asym name comment _ _ _ -> putStrLn $ (show line) ++ "\tasym   " ++ name
+    Phrase{} -> putStrLn $ "phrase " ++ whole
+    Asym{}   -> putStrLn $ "asym   " ++ whole
+    Field{}  -> putStrLn $ "field  " ++ whole
   listEntries' (line+1) entries
 
 -- | The prompt loop. Exits through exitSuccess in lower functions.
@@ -245,6 +253,7 @@ prompthandle p@(Prompt path _ storage) ("new":typename:[])
               maybenewentry <- case typename of
                 "phrase" -> newPhraseEntry name com
                 "asym" -> newAsymEntry name com
+                "field" -> newFieldEntry name com
                 _ -> error "Previously unknown type occured ???"
               case maybenewentry of
                 Nothing -> return p
@@ -263,20 +272,25 @@ prompthandle p@(Prompt _ (PromptEntry entry) _) ("plain":[]) = do
   putStrLn $ "Name: " ++ (name entry)
   putStrLn $ "Comment: " ++ (comment entry)
   case entry of
-    Phrase _ _ phrase -> putStrLn $ "Phrase: " ++ phrase
+    Phrase _ _ phrase -> do
+      putStrLn $ "Phrase: " ++ phrase
+      putStrLn "Type newline/ENTER to clear screen."
     Asym _ _ fprint pub _ -> do
       putStrLn $ "Fingerprint: " ++ fprint
       putStrLn $ "Public key:  " ++ pub
       putStrLn ""
     Field _ _ field ->
-      let asstring = BS8.unpack field
-      in if all isPrint asstring
-        then do
-          putStrLn "Content:\n"
-          putStrLn asstring
+      if BS.null field
+        then putStrLn "Empty."
         else
-          putStrLn "Can not show you content since it contains non-printable characters."
-  putStrLn "Type newline/ENTER to clear screen."
+          let asstring = BS8.unpack field
+          in if all isPrint asstring
+            then do
+              putStrLn "Content:\n"
+              putStrLn asstring
+            else
+              putStrLn "Can not show you content since \
+                        \it contains non-printable characters."
   return p
 
 prompthandle p@(Prompt path (PromptEntry entry) storage) ("rename":[]) = do
@@ -312,6 +326,17 @@ prompthandle p ("clear":[]) = do
   putStrLn "Clipboard cleared."
   return p
 
+prompthandle p@(Prompt path (PromptEntry entry) storage) ("delete":[]) = do
+  let oldname = (name entry)
+      newlist = deleteEntry entry (entries storage)
+      newstorage = storage{ entries=newlist }
+  save path newstorage
+  putStrLn $ "Deleted: " ++ oldname
+  return p{ info=NoPromptInfo, storage=newstorage }
+
+--------------------------------------------------------------------------------
+-- type specific prompt commands
+
 prompthandle p ("cb":[]) =
   prompthandle p ["clipboard"]
 prompthandle p@(Prompt _ (PromptEntry (Phrase _ _ pw)) _) ("clipboard":[]) = do
@@ -334,14 +359,10 @@ prompthandle p@(Prompt _ (PromptEntry (Asym _ _ _ _ priv)) _) ("privcb":[]) = do
   putStrLn "PRIVATE KEY PUT INTO CLIPBOARD!"
   return p
 
-prompthandle p@(Prompt path (PromptEntry entry) storage) ("delete":[]) = do
-  let oldname = (name entry)
-      newlist = deleteEntry entry (entries storage)
-      newstorage = storage{ entries=newlist }
-  save path newstorage
-  putStrLn $ "Deleted: " ++ oldname
-  return p{ info=NoPromptInfo, storage=newstorage }
+--------------------------------------------------------------------------------
+-- The fallthrough prompt handlers
 
+-- Select an entry from the list.
 prompthandle p@(Prompt _ (PromptList entries) storage) (other:[]) = do
   if other =~ "^[0-9]+$"
     then do
