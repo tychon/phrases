@@ -13,7 +13,7 @@ For more TODOs use `git grep TODO`
 
 After you've got it to run (see section below) you can create your container with `./phrases init teststorage`. This will ask you for a passphrase and create a file in the current directory. You can then do `./phrases open teststorage` to open the storage and change anything. One important thing: Everytime you change something the storage is saved to disk, so you can't restore anything by killing the program. Also: don't miss the information on security I've posted below.
 
-After you've authorized and the file was decrypted you get a command prompt. There are different prompt symbols. The simplest one is `>` you should then type `list` get a list of all entries or `list hub` to get a list of all entries containing `hub` in their name (case insensitive).
+After you've authorized and the file was decrypted you get a command prompt. There are different prompt symbols. The simplest one is `>` you should then type `list` get a list of all entries or `list hub` to get a list of all entries containing `hub` in their name (case insensitive regex).
 
 The prompt then changes to `SELECT >` and you should enter a number giving one of the results in the list and the prompt changes to `name >` where `name` is the name of the selected entry. Now you can use the type specific commands (listed in Commands on Prompt) too.
 
@@ -27,7 +27,6 @@ To delete an entry, select it and type delete.
 * drbg
 * ansi-terminal
 * regex-tdfa
-* system-filepath
 * hclip (also requires external program xclip or xsel on linux)
 
 Try `cabal install ...` to get them.
@@ -35,7 +34,7 @@ Use `make` to compile.
 
 # Basic Usage
 
-This annotation begins the helptext shown by the program with `phrases help`.
+This helptext is shown by the program with `phrases help`.
 It is extracted by awk in the makefile and embedded into the Haskell code:
 ```
 %% BEGIN_HELPTEXT
@@ -55,7 +54,8 @@ migrate OLDVERSION NEWVERSION
             In general version numbers of containers corresponds to git tag of
             source code. If you forgot the version number of your storage file,
             open in hex editor and look for the version=X property.
-dump FILE   Open container and dump serialized Storage object to file.
+dump CONTAINERFILE PLAINFILE
+            Open container and dump serialized Storage object to file.
             Use with care.
 
 Supported Versions:
@@ -73,7 +73,7 @@ For more information see the README.
 
 ### Commands on prompt
 
-This annotation begins the helptext shown if you type `help` in the programs
+This helptext is shown if you type `help` in the programs
 command prompt. It's embedded on compiletime into the haskell code.
 ```
 %% BEGIN_PROMPTHELP

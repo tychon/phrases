@@ -101,6 +101,8 @@ save :: String -> Storage -> IO ()
 save path storage = do
   innersalt <- genRandomness (innersalt_length $ fromJust $ props storage)
   let fcontent = encrypt storage innersalt
+  -- TODO find out, how lazy this is
+  -- (should be strictly and unbuffered in case of emergency)
   BS.writeFile path fcontent
   putStrLn $ "Saved to "++path
 

@@ -64,21 +64,27 @@ data SEntry =
     , fingerprint
     , public
     , private :: String }
-  | Field { -- for ascii data
+  | Field { -- for general data
       name
-    , field :: String }
+    , comment :: String
+    , field :: ByteString }
   deriving (Show, Read)
 
 instance Eq SEntry where
   Phrase n1 _ _ == Phrase n2 _ _ = n1 == n2
-  Phrase{} == _ = False
+  Phrase{}      == _             = False
   Asym n1 _ _ _ _ == Asym n2 _ _ _ _ = n1 == n2
-  Asym{} == _ = False
+  Asym{}          == _               = False
+  Field n1 _ _ == Field n2 _ _ = n1 == n2
+  Field{}      == _          = False
 instance Ord SEntry where
   Phrase n1 _ _ <= Phrase n2 _ _ = n1 <= n2
-  Phrase{} <= _ = True
+  Phrase{}      <= _             = True
   Asym n1 _ _ _ _ <= Asym n2 _ _ _ _ = n1 <= n2
-  Asym{} <= Phrase{} = False
+  Asym{}          <= Phrase{}        = False
+  Asym{}          <= Field{}         = True
+  Field n1 _ _ <= Field n2 _ _ = n1 <= n2
+  Field{}    <= _          = False
 
 -- | Simply creates a ByteString containing one NUL character.
 nullbytestring :: ByteString
@@ -161,7 +167,7 @@ checkHash readhash plaintext =
       then Nothing
       else readMaybe $ BS8.unpack plaintext
 
--- | Encrypts the storage with its containing properties and an extra innersalt.
+-- | Encrypts the storage with its contained properties and an extra innersalt.
 -- You have to generate a newinnersalt yourself because it is an IO operation.
 -- Returns a ByteString to be written to a file.
 encrypt :: Storage -> ByteString -> ByteString

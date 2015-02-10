@@ -3,11 +3,11 @@
 main: embedded-helptext embedded-ghcversion embedded-prompthelp
 	ghc -XTemplateHaskell -XRecordWildCards phrases -o phrases
 
-embedded-helptext: README
-	cat README | awk '/END_HELPTEXT/{p=0;exit}p;/BEGIN_HELPTEXT/{p=1}' > embedded-helptext
+embedded-helptext: README.md
+	cat README.md | awk '/END_HELPTEXT/{p=0;exit}p;/BEGIN_HELPTEXT/{p=1}' > embedded-helptext
 
-embedded-prompthelp: README
-	cat README | awk '/END_PROMPTHELP/{p=0;exit}p;/BEGIN_PROMPTHELP/{p=1}' > embedded-prompthelp
+embedded-prompthelp: README.md
+	cat README.md | awk '/END_PROMPTHELP/{p=0;exit}p;/BEGIN_PROMPTHELP/{p=1}' > embedded-prompthelp
 
 embedded-ghcversion:
 	ghc --numeric-version > embedded-ghcversion

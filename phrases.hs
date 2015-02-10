@@ -10,8 +10,9 @@ import System.Posix.Signals ( Handler(Catch), keyboardSignal, installHandler )
 import Control.Exception ( AsyncException(UserInterrupt), throwTo )
 import Control.Concurrent ( myThreadId )
 import Data.Maybe ( fromJust )
-import qualified Data.ByteString.Char8 as BS8
+import Data.Char ( isPrint )
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BS8
 import Text.Regex.TDFA
 import System.Hclip
 
@@ -58,6 +59,7 @@ parseargs ["init", pathname] = do
       putStrLn $ "Empty storage created."
       exitSuccess
 
+-- | Open container and enter prompt loop on 'open' command
 parseargs ["open", pathname] = do
   putStrLn $ "Opening container at " ++ pathname
   existing <- doesFileExist pathname
@@ -72,8 +74,23 @@ parseargs ["open", pathname] = do
       putStrLn "Enter empty line to clear screen."
       prompt (Prompt pathname NoPromptInfo storage)
 
---TODO other commands
--- migrate, dump
+--TODO implement migrate command
+
+parseargs ["dump", storagepath, plainpath] = do
+  putStrLn $ "Opening container at " ++ storagepath
+  existing <- doesFileExist storagepath
+  if not existing
+    then do
+      putStrLn "Container file doesn't exist. Exit."
+      exitFailure
+    else do
+      storage <- open storagepath
+      let storage' = storage{ lockhash=Nothing }
+      --printStorageStats storage
+      putStrLn $ "Dumping into " ++ plainpath
+      writeFile plainpath $ show storage'
+      putStrLn "Done."
+      exitSuccess
 
 parseargs _ = do
   putStrLn "No valid command given. Try 'help'."
@@ -193,7 +210,7 @@ prompthandle p@(Prompt _ _ storage) ["list"] = do
       return p { info=PromptList newlist }
 
 prompthandle p@(Prompt _ _ storage) ("list":regex:[]) = do
-  -- TODO catch errors or
+  -- TODO catch errors on malformed regexes or
   -- move to other regex library because TDFA doesn't use exceptions
   let newlist = filterEntries regex (entries storage)
   case length newlist of
@@ -251,7 +268,14 @@ prompthandle p@(Prompt _ (PromptEntry entry) _) ("plain":[]) = do
       putStrLn $ "Fingerprint: " ++ fprint
       putStrLn $ "Public key:  " ++ pub
       putStrLn ""
-    -- TODO other types
+    Field _ _ field ->
+      let asstring = BS8.unpack field
+      in if all isPrint asstring
+        then do
+          putStrLn "Content:\n"
+          putStrLn asstring
+        else
+          putStrLn "Can not show you content since it contains non-printable characters."
   putStrLn "Type newline/ENTER to clear screen."
   return p
 
