@@ -96,6 +96,8 @@ getFullPath p = do
   return $ fullPath homePath p
 
 -- | Read from stdin until user enters EOT / Ctrl-D.
+-- Use with bang pattern to get rid of high memory usage.
+-- TODO better implementation, since this may be a memory leak?
 loadStdin :: IO String
 loadStdin = do
   c <- tryJust (guard . isEOFError) $ hGetChar stdin
@@ -157,9 +159,8 @@ save :: String -> Storage -> IO ()
 save path storage = do
   innersalt <- genRandomness (innersalt_length $ fromJust $ props storage)
   let fcontent = encrypt storage innersalt
-  -- TODO find out, how lazy this is
-  -- (should be strictly and unbuffered in case of emergency)
-  BS.writeFile path fcontent
+  -- the `!x <- ...` forces strict evaluation (I think :-/ )
+  !x <- BS.writeFile path fcontent
   putStrLn $ "Saved to "++path
 
 -- | Opens the container at the given path.

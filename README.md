@@ -21,9 +21,11 @@ To create a new entry for your github password say `new phrase` then it will ask
 
 If you wan't to know a password use `name > plain` to show in terminal or `name > clipboard` to copy to clipboard without printing in plaintext to your terminal. The clipboard commands vary for the different data types.
 
-To delete an entry, select it and type delete.
+To delete an entry, select it and type `delete`.
 
 # Install
+
+Requires the following haskell modules:
 
 * pbkdf
 * drbg

@@ -1,7 +1,7 @@
 .PHONY: main test clear
 
 main: embedded-helptext embedded-ghcversion embedded-prompthelp
-	ghc -XTemplateHaskell -XRecordWildCards phrases -o phrases
+	ghc -XTemplateHaskell -XRecordWildCards -XBangPatterns phrases -o phrases
 
 embedded-helptext: README.md
 	cat README.md | awk '/END_HELPTEXT/{p=0;exit}p;/BEGIN_HELPTEXT/{p=1}' > embedded-helptext

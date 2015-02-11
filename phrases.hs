@@ -359,7 +359,7 @@ prompthandle p@(Prompt path (PromptEntry asym) storage) ("fingerprint":[]) = do
       return p{ info=(PromptEntry newentry), storage=newstorage }
 
 prompthandle p@(Prompt path (PromptEntry asym@Asym{}) storage) ("load":[]) = do
-  content <- loadStdin
+  !content <- loadStdin
   (newentry, newstorage) <- setAsymPub (Just content) asym storage
   save path newstorage
   return p{ info=(PromptEntry newentry), storage=newstorage }
@@ -379,7 +379,7 @@ prompthandle p@(Prompt path (PromptEntry asym@(Asym _ _ _ pub _)) _) ("put":ppat
   return p
 
 prompthandle p@(Prompt path (PromptEntry asym@Asym{}) storage) ("loadpriv":[]) = do
-  content <- loadStdin
+  !content <- loadStdin
   (newentry, newstorage) <- setAsymPriv (Just content) asym storage
   save path newstorage
   return p{ info=(PromptEntry newentry), storage=newstorage }
