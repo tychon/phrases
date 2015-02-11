@@ -3,9 +3,13 @@ module BasicUI where
 
 import System.Exit
 import System.IO
-import Control.Exception ( Exception, SomeException, catch )
+import System.IO.Error ( isEOFError, isPermissionError )
+import System.Directory ( getHomeDirectory )
+import Control.Exception ( Exception, SomeException, catch, try, tryJust )
+import Control.Monad ( guard )
 import Data.Maybe ( fromJust )
-import Data.Char ( isPrint )
+import Data.Char ( isPrint, isAscii )
+import Data.List ( isPrefixOf )
 import Data.ByteString.Char8 ( pack )
 import Data.ByteString ( ByteString )
 import qualified Data.ByteString as BS ( readFile, writeFile )
@@ -80,6 +84,58 @@ initStdStorage passphrase = do
       lockhash = getPBK props' (BS8.pack passphrase)
   return Storage { props=Just props', lockhash=Just lockhash, entries=[] }
 
+-- http://stackoverflow.com/questions/18610313/haskell-join-gethomedirectory-string
+fullPath :: String -> String -> String
+fullPath homePath s
+  | "~" `isPrefixOf` s = homePath ++ (tail s)
+  | otherwise          = s
+
+getFullPath :: String -> IO String
+getFullPath p = do
+  homePath <- getHomeDirectory
+  return $ fullPath homePath p
+
+-- | Read from stdin until user enters EOT / Ctrl-D.
+loadStdin :: IO String
+loadStdin = do
+  c <- tryJust (guard . isEOFError) $ hGetChar stdin
+  case c of
+    Left e -> putStrLn "" >> return ""
+    Right c -> do
+      following <- loadStdin
+      return $ c:following
+
+-- | Load data from file, aborts when it's not ASCII
+loadASCII :: String -> IO (Maybe String)
+loadASCII lpath = do
+  loadpath <- getFullPath lpath
+  putStrLn $ "Loading ASCII data from file: " ++ loadpath
+  content <- try $ readFile loadpath :: IO (Either SomeException String)
+  case content of
+    Left e -> do
+      putStrLn "Could not read content, nothing changed."
+      return Nothing
+    Right content -> do
+      if all isAscii content
+        then do
+          return $ Just content
+        else do
+          putStrLn "Contains non ASCII characters, aborted."
+          return Nothing
+
+-- | Write String to file and show error on permission error.
+writeASCII :: String -> String -> IO ()
+writeASCII wpath text = do
+  writepath <- getFullPath wpath
+  putStrLn $ "Writing data to file: " ++ writepath
+  res <- tryJust (\e -> if isPermissionError e then Just e else Nothing)
+                 (writeFile writepath text)
+  case res of
+    Left e -> do
+      putStrLn "Permission denied."
+      putStrLn $ show e
+      return ()
+    Right () -> return ()
 
 --------------------------------------------------------------------------------
 -- Functions for cmd line commands
@@ -246,12 +302,17 @@ newAsymEntry name comment = do
 newFieldEntry :: String -> String -> IO (Maybe SEntry)
 newFieldEntry name comment = do return $ Just (Field name comment empty)
 
--- | Replace an existing Entry with a new one. Throws error if not found.
-replaceEntry :: SEntry -> [SEntry] -> [SEntry]
-replaceEntry _ [] = error "Entry not found."
-replaceEntry repl (entry:entries)
+-- | Replace an existing entry with a new one. Throws error if not found.
+-- | Compares by name: onyl use for entries with unchaned names!
+replaceEntry :: SEntry -> Storage -> Storage
+replaceEntry repl s@(Storage _ _ entries) =
+  s{ entries=(replaceEntry' repl entries) }
+-- | Helper function for replaceEntry working on the list of entries.
+replaceEntry' :: SEntry -> [SEntry] -> [SEntry]
+replaceEntry' _ [] = error "Entry not found."
+replaceEntry' repl (entry:entries)
   | (name repl) == (name entry) = repl:entries
-  | otherwise                   = entry:(replaceEntry repl entries)
+  | otherwise                   = entry:(replaceEntry' repl entries)
 
 -- | Delete entry from list. Throws error if not found.
 deleteEntry :: SEntry -> [SEntry] -> [SEntry]
@@ -259,4 +320,28 @@ deleteEntry _ [] = error "Entry not found."
 deleteEntry del (entry:entries)
   | (name del) == (name entry) = entries
   | otherwise                  = entry:(deleteEntry del entries)
+
+
+--------------------------------------------------------------------------------
+-- type specific functions
+
+setAsymPub :: Maybe String -> SEntry -> Storage -> IO (SEntry, Storage)
+setAsymPub content asym storage =
+  case content of
+    Nothing -> return (asym, storage)
+    Just content -> do
+      let newentry = asym{ public=content }
+          newstorage = replaceEntry newentry storage
+      putStrLn "New public key set."
+      return (newentry, newstorage)
+
+setAsymPriv :: Maybe String -> SEntry -> Storage -> IO (SEntry, Storage)
+setAsymPriv content asym storage =
+  case content of
+    Nothing -> return (asym, storage)
+    Just content -> do
+      let newentry = asym{ private=content }
+          newstorage = replaceEntry newentry storage
+      putStrLn "New private key set."
+      return (newentry, newstorage)
 

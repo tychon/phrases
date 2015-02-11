@@ -275,10 +275,12 @@ prompthandle p@(Prompt _ (PromptEntry entry) _) ("plain":[]) = do
     Phrase _ _ phrase -> do
       putStrLn $ "Phrase: " ++ phrase
       putStrLn "Type newline/ENTER to clear screen."
-    Asym _ _ fprint pub _ -> do
+    Asym _ _ fprint pub priv -> do
       putStrLn $ "Fingerprint: " ++ fprint
-      putStrLn $ "Public key:  " ++ pub
+      putStrLn $ "Public key:\n" ++ pub
       putStrLn ""
+      putStrLn $ "Private key: [" ++ (show $ length priv) ++ " characters]\
+                 \ use 'putpriv' to display here."
     Field _ _ field ->
       if BS.null field
         then putStrLn "Empty."
@@ -315,11 +317,10 @@ prompthandle p@(Prompt path (PromptEntry entry) storage) ("comment":[]) = do
       invalidinput e "" >> return p
     Right com -> do
       let newentry = entry{ comment=com }
-          newentries = replaceEntry newentry (entries storage)
-          newstorage = storage{ entries=newentries }
+          newstorage = replaceEntry newentry storage
       save path newstorage
       putStrLn "Comment changed."
-      return p{ storage=newstorage }
+      return p{ info=(PromptEntry newentry), storage=newstorage }
 
 prompthandle p ("clear":[]) = do
   setClipboard ""
@@ -344,6 +345,59 @@ prompthandle p@(Prompt _ (PromptEntry (Phrase _ _ pw)) _) ("clipboard":[]) = do
   putStrLn "Password put into clipboard."
   return p
 
+prompthandle p@(Prompt path (PromptEntry asym) storage) ("fingerprint":[]) = do
+  putStrLn $ "Old fingerprint is: " ++ (fingerprint asym)
+  putStr "Enter new fingerprint: "
+  ans <- getPromptAns
+  case ans of
+    Left e -> invalidinput e "" >> return p
+    Right ans -> do
+      let newentry = asym{ fingerprint=ans }
+          newstorage = replaceEntry newentry storage
+      save path newstorage
+      putStrLn "Fingerprint changed."
+      return p{ info=(PromptEntry newentry), storage=newstorage }
+
+prompthandle p@(Prompt path (PromptEntry asym@Asym{}) storage) ("load":[]) = do
+  content <- loadStdin
+  (newentry, newstorage) <- setAsymPub (Just content) asym storage
+  save path newstorage
+  return p{ info=(PromptEntry newentry), storage=newstorage }
+
+prompthandle p@(Prompt path (PromptEntry asym@Asym{}) storage) ("load":lpath:[]) = do
+  content <- loadASCII lpath
+  (newentry, newstorage) <- setAsymPub content asym storage
+  save path newstorage
+  return p{ info=(PromptEntry newentry), storage=newstorage }
+
+prompthandle p@(Prompt path (PromptEntry asym@(Asym _ _ _ pub _)) _) ("put":[]) = do
+  putStrLn pub
+  return p
+
+prompthandle p@(Prompt path (PromptEntry asym@(Asym _ _ _ pub _)) _) ("put":ppath:[]) = do
+  writeASCII ppath pub
+  return p
+
+prompthandle p@(Prompt path (PromptEntry asym@Asym{}) storage) ("loadpriv":[]) = do
+  content <- loadStdin
+  (newentry, newstorage) <- setAsymPriv (Just content) asym storage
+  save path newstorage
+  return p{ info=(PromptEntry newentry), storage=newstorage }
+
+prompthandle p@(Prompt path (PromptEntry asym@Asym{}) storage) ("loadpriv":lpath:[]) = do
+  content <- loadASCII lpath
+  (newentry, newstorage) <- setAsymPriv content asym storage
+  save path newstorage
+  return p{ info=(PromptEntry newentry), storage=newstorage }
+
+prompthandle p@(Prompt path (PromptEntry asym@(Asym _ _ _ _ priv)) _) ("putpriv":[]) = do
+  putStrLn priv
+  return p
+
+prompthandle p@(Prompt path (PromptEntry asym@(Asym _ _ _ _ priv)) _) ("putpriv":ppath:[]) = do
+  writeASCII ppath priv
+  return p
+
 prompthandle p@(Prompt _ (PromptEntry (Asym _ _ fprint _ _)) _) ("fprintcb":[]) = do
   setClipboard fprint
   putStrLn "Fingerprint put into clipboard."
@@ -359,11 +413,13 @@ prompthandle p@(Prompt _ (PromptEntry (Asym _ _ _ _ priv)) _) ("privcb":[]) = do
   putStrLn "PRIVATE KEY PUT INTO CLIPBOARD!"
   return p
 
+--TODO field commands
+
 --------------------------------------------------------------------------------
 -- The fallthrough prompt handlers
 
 -- Select an entry from the list.
-prompthandle p@(Prompt _ (PromptList entries) storage) (other:[]) = do
+prompthandle p@(Prompt _ (PromptList entries) storage) (other:[]) =
   if other =~ "^[0-9]+$"
     then do
       let idx = (read other :: Int) - 1
@@ -374,7 +430,9 @@ prompthandle p@(Prompt _ (PromptList entries) storage) (other:[]) = do
           putStrLn $ "Name: " ++ (name entry)
           putStrLn $ "Comment: " ++ (comment entry)
           return p{ info=PromptEntry entry }
-    else prompthandle p ["unknown command"]
+    else do
+      putStrLn "Not a number. Give a number from the list above."
+      return p
 
 prompthandle p _ = do
   clearScreen

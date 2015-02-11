@@ -102,15 +102,18 @@ Type-specific commands:
     clipboard | cb  Copy data to clipboard.
   asym
     fingerprint  Set fingerprint
-    load FILE    Load private key from file
-    put FILE     Save private key to file
+    load [FILE]  Load public key from file or stdin
+    put [FILE]   Save public key to file or stdout
+    loadpriv [FILE]  Load private key from file or stdin
+    putpriv [FILE]   Save private key to file or stdout
     fprintcb     Put fingerprint into clipboard
-    privcb       Put private key into clipboard
     pubcb        Put public key into clipboard
+    privcb       Put private key into clipboard
   field
-    input     Input text in terminal.
-    load FILE Load data from file.
-    put FILE  Save data to file.
+    load [FILE] Load data from file or stdin
+    put [FILE]  Save data to file or stdout
+When entering long texts with using the load command on console
+use Ctrl-D (maybe 2 times) to finsh.
 %% END_PROMPTHELP
 ```
 
