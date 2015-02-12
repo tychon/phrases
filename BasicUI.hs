@@ -10,10 +10,9 @@ import Control.Monad ( guard )
 import Data.Maybe ( fromJust )
 import Data.Char ( isPrint, isAscii )
 import Data.List ( isPrefixOf )
-import Data.ByteString.Char8 ( pack )
 import Data.ByteString ( ByteString )
 import qualified Data.ByteString as BS ( readFile, writeFile )
-import qualified Data.ByteString.Char8 as BS8 ( pack, unpack, empty )
+import qualified Data.ByteString.Char8 as BS8 ( pack, unpack, empty, foldl' )
 import Crypto.Random.DRBG
 import Text.Regex.TDFA
 
@@ -85,11 +84,13 @@ initStdStorage passphrase = do
   return Storage { props=Just props', lockhash=Just lockhash, entries=[] }
 
 -- http://stackoverflow.com/questions/18610313/haskell-join-gethomedirectory-string
+-- | Helper function for getFullPath, replaces leading tilde by homePath.
 fullPath :: String -> String -> String
 fullPath homePath s
   | "~" `isPrefixOf` s = homePath ++ (tail s)
   | otherwise          = s
 
+-- | Expands tilde in beginning of path to users home directory.
 getFullPath :: String -> IO String
 getFullPath p = do
   homePath <- getHomeDirectory
@@ -116,6 +117,7 @@ loadASCII lpath = do
   case content of
     Left e -> do
       putStrLn "Could not read content, nothing changed."
+      putStrLn $ show e
       return Nothing
     Right content -> do
       if all isAscii content
@@ -137,7 +139,34 @@ writeASCII wpath text = do
       putStrLn "Permission denied."
       putStrLn $ show e
       return ()
-    Right () -> return ()
+    Right () -> putStrLn "Done." >> return ()
+
+-- | Load data from file, aborts when it's not ASCII
+loadBytes :: String -> IO (Maybe ByteString)
+loadBytes lpath = do
+  loadpath <- getFullPath lpath
+  putStrLn $ "Loading binary data from file: " ++ loadpath
+  content <- try $ BS.readFile loadpath :: IO (Either SomeException ByteString)
+  case content of
+    Left e -> do
+      putStrLn "Could not read data, nothing changed."
+      putStrLn $ show e
+      return Nothing
+    Right content ->
+      return $ Just content
+
+writeBytes :: String -> ByteString -> IO ()
+writeBytes wpath bytes = do
+  writepath <- getFullPath wpath
+  putStrLn $ "Writing data to file: " ++ writepath
+  res <- tryJust (\e -> if isPermissionError e then Just e else Nothing)
+                 (BS.writeFile writepath bytes)
+  case res of
+    Left e -> do
+      putStrLn "Permission denied."
+      putStrLn $ show e
+      return ()
+    Right () -> putStrLn "Done." >> return ()
 
 --------------------------------------------------------------------------------
 -- Functions for cmd line commands
@@ -344,5 +373,19 @@ setAsymPriv content asym storage =
       let newentry = asym{ private=content }
           newstorage = replaceEntry newentry storage
       putStrLn "New private key set."
+      return (newentry, newstorage)
+
+isFieldPrintable :: ByteString -> Bool
+isFieldPrintable field =
+  BS8.foldl' (\prev ch -> prev && isAscii ch && ch /= '\ESC') True field
+
+setField :: Maybe ByteString -> SEntry -> Storage -> IO (SEntry, Storage)
+setField content field storage =
+  case content of
+    Nothing -> return (field, storage)
+    Just content -> do
+      let newentry = field{ field=content }
+          newstorage = replaceEntry newentry storage
+      putStrLn "New field data set."
       return (newentry, newstorage)
 

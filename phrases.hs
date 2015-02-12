@@ -96,6 +96,7 @@ parseargs _ = do
   putStrLn "No valid command given. Try 'help'."
   exitFailure
 
+
 --------------------------------------------------------------------------------
 -- Prompt commands
 
@@ -285,11 +286,10 @@ prompthandle p@(Prompt _ (PromptEntry entry) _) ("plain":[]) = do
       if BS.null field
         then putStrLn "Empty."
         else
-          let asstring = BS8.unpack field
-          in if all isPrint asstring
+          if isFieldPrintable field
             then do
               putStrLn "Content:\n"
-              putStrLn asstring
+              putStrLn $ BS8.unpack field
             else
               putStrLn "Can not show you content since \
                         \it contains non-printable characters."
@@ -335,6 +335,7 @@ prompthandle p@(Prompt path (PromptEntry entry) storage) ("delete":[]) = do
   putStrLn $ "Deleted: " ++ oldname
   return p{ info=NoPromptInfo, storage=newstorage }
 
+
 --------------------------------------------------------------------------------
 -- type specific prompt commands
 
@@ -344,6 +345,7 @@ prompthandle p@(Prompt _ (PromptEntry (Phrase _ _ pw)) _) ("clipboard":[]) = do
   setClipboard pw
   putStrLn "Password put into clipboard."
   return p
+
 
 prompthandle p@(Prompt path (PromptEntry asym) storage) ("fingerprint":[]) = do
   putStrLn $ "Old fingerprint is: " ++ (fingerprint asym)
@@ -358,17 +360,18 @@ prompthandle p@(Prompt path (PromptEntry asym) storage) ("fingerprint":[]) = do
       putStrLn "Fingerprint changed."
       return p{ info=(PromptEntry newentry), storage=newstorage }
 
-prompthandle p@(Prompt path (PromptEntry asym@Asym{}) storage) ("load":[]) = do
+prompthandle p@(Prompt path (PromptEntry asym@Asym{}) storage) ("set":[]) = do
   !content <- loadStdin
   (newentry, newstorage) <- setAsymPub (Just content) asym storage
   save path newstorage
   return p{ info=(PromptEntry newentry), storage=newstorage }
 
-prompthandle p@(Prompt path (PromptEntry asym@Asym{}) storage) ("load":lpath:[]) = do
+prompthandle p@(Prompt path (PromptEntry asym@Asym{}) storage) ("set":lpath:[]) = do
   content <- loadASCII lpath
   (newentry, newstorage) <- setAsymPub content asym storage
   save path newstorage
   return p{ info=(PromptEntry newentry), storage=newstorage }
+
 
 prompthandle p@(Prompt path (PromptEntry asym@(Asym _ _ _ pub _)) _) ("put":[]) = do
   putStrLn pub
@@ -378,13 +381,13 @@ prompthandle p@(Prompt path (PromptEntry asym@(Asym _ _ _ pub _)) _) ("put":ppat
   writeASCII ppath pub
   return p
 
-prompthandle p@(Prompt path (PromptEntry asym@Asym{}) storage) ("loadpriv":[]) = do
+prompthandle p@(Prompt path (PromptEntry asym@Asym{}) storage) ("setpriv":[]) = do
   !content <- loadStdin
   (newentry, newstorage) <- setAsymPriv (Just content) asym storage
   save path newstorage
   return p{ info=(PromptEntry newentry), storage=newstorage }
 
-prompthandle p@(Prompt path (PromptEntry asym@Asym{}) storage) ("loadpriv":lpath:[]) = do
+prompthandle p@(Prompt path (PromptEntry asym@Asym{}) storage) ("setpriv":lpath:[]) = do
   content <- loadASCII lpath
   (newentry, newstorage) <- setAsymPriv content asym storage
   save path newstorage
@@ -413,7 +416,28 @@ prompthandle p@(Prompt _ (PromptEntry (Asym _ _ _ _ priv)) _) ("privcb":[]) = do
   putStrLn "PRIVATE KEY PUT INTO CLIPBOARD!"
   return p
 
---TODO field commands
+
+prompthandle p@(Prompt path (PromptEntry field@Field{}) storage) ("set":[]) = do
+  !content <- loadStdin
+  (newentry, newstorage) <- setField (Just $ BS8.pack content) field storage
+  save path newstorage
+  return p{ info=(PromptEntry newentry), storage=newstorage }
+
+prompthandle p@(Prompt path (PromptEntry field@Field{}) storage) ("set":lpath:[]) = do
+  content <- loadBytes lpath
+  (newentry, newstorage) <- setField content field storage
+  save path newstorage
+  return p{ info=(PromptEntry newentry), storage=newstorage }
+
+prompthandle p@(Prompt _ (PromptEntry (Field _ _ field)) _) ("put":[]) = do
+  if isFieldPrintable field
+    then (putStrLn $ BS8.unpack field) >> return p
+    else putStrLn "Contains non-ASCII characters. Put to file!" >> return p
+
+prompthandle p@(Prompt _ (PromptEntry (Field _ _ field)) _) ("put":wpath:[]) = do
+  writeBytes wpath field
+  return p
+
 
 --------------------------------------------------------------------------------
 -- The fallthrough prompt handlers
