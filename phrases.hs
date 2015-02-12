@@ -10,7 +10,7 @@ import System.Posix.Signals ( Handler(Catch), keyboardSignal, installHandler )
 import Control.Exception ( AsyncException(UserInterrupt), throwTo )
 import Control.Concurrent ( myThreadId )
 import Data.Maybe ( fromJust )
-import Data.Char ( isPrint )
+import Data.Char ( isDigit )
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS8
 import Text.Regex.TDFA
@@ -171,39 +171,58 @@ prompthandle p@(Prompt path _ storage) ["change-lock"] = do
       invalidinput e "Passphrase not changed."
       return p
     Right passphrase -> do
-      let newstorage = changelock passphrase storage
-      save path newstorage
-      putStrLn "Passphrase changed."
-      return p { storage=newstorage }
+      putStrLn "\nAnd again: "
+      maybeagain <- getPassphrase
+      case maybeagain of
+        Left e -> do
+          invalidinput e "Passphrase not changed."
+          return p
+        Right again -> do
+          if passphrase == again
+            then do
+              let newstorage = changelock passphrase storage
+              save path newstorage
+              putStrLn "Passphrase changed."
+              return p { storage=newstorage }
+            else do
+              putStrLn "Phrases do not match."
+              return p
+
+prompthandle p@(Prompt _ _ storage) ["test"] = do
+  rememberPassphrase storage
+  return p
 
 prompthandle p@(Prompt path _ storage) ["resalt"] = do
-  putStrLn "Remember your passphrase or choose a new one:"
-  maybepassphrase <- getPassphrase
-  case maybepassphrase of
-    Left e -> do
-      invalidinput e "Passphrase and salt not changed."
-      return p
-    Right passphrase -> do
+  passphrase <- rememberPassphrase storage
+  case passphrase of
+    Nothing -> return p
+    Just passphrase -> do
       newstorage <- resalt passphrase storage
       save path newstorage
-      putStrLn "Salt changed, passphrase set."
+      putStrLn "Salt changed."
       return p { storage=newstorage }
 
-prompthandle p@(Prompt path _ storage) ["test"] = do
-  putStrLn "Remember your passphrase:"
-  maybepassphrase <- getPassphrase
-  case maybepassphrase of
-    Left e -> do
-      invalidinput e ""
-    Right passphrase -> do
-      let testlockhash = getPBK (fromJust $ props storage) (BS8.pack passphrase)
-          Just currentlockhash = lockhash storage
-      if testlockhash == currentlockhash
-        then do
-          putStrLn "Passphrases match. Congratulations, you remembered!"
-        else do
-          putStrLn "Passphrases don't match. Maybe try again :-/"
-  return p
+prompthandle p@(Prompt path _ storage@(Storage (Just prop) _ _)) ["iterations"] = do
+  passphrase <- rememberPassphrase storage
+  case passphrase of
+    Nothing -> return p
+    Just passphrase -> do
+      putStrLn $ "Current number of iterations: " ++ (show . pbkdf2_rounds $ prop)
+      putStr "Enter the number of iterations for PBDKF2: "
+      ans <- getPromptAns
+      case ans of
+        Left e -> invalidinput e "" >> return p
+        Right ans ->
+          if all isDigit ans
+            then do
+              let iterations = read ans :: Int
+                  storage' = changePBKDF2Rounds iterations passphrase storage
+              save path storage'
+              putStrLn "Iterations set."
+              return p{ storage=storage' }
+            else do
+              putStrLn "Not a number."
+              return p
 
 prompthandle p@(Prompt _ _ storage) ["list"] = do
   let newlist = entries storage

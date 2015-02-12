@@ -1,6 +1,5 @@
 ### TODO
 
-* make resalt and change-lock more user-friendly / "safe"
 * formula for pbkdf2 rounds
 * maybe use ForeignPtr and mlock as suggested in
   http://stackoverflow.com/questions/11932246/against-cold-boot-attacks-how-to-restrain-sensitive-information-in-haskell
@@ -86,8 +85,9 @@ exit        Exit program (deprecated, use 'quit')
 stats       Show stats about storage.
 save        Save storage to file again (pretty useless).
 change-lock Change passphrase of container.
-resalt      Change permanent salt of container
 test        Enter a passphrase and test if it matches the current one.
+resalt      Change permanent salt of container
+iterations  Change the number of PBKDF2 rounds.
 list REGEX  Search in names of entries for POSIX regex.
 new TYPE    Create new entry, types: phrase, asym, field, data
 
@@ -136,6 +136,25 @@ use Ctrl-D (maybe 2 times) to finsh.
 * Don't overdo the security here. You are going to post the password
   in your crappy browser anyways.
 
+### How to choose the number of PBKDF2 rounds
+
+To quote the RFC 2898:
+
+> An iteration count has traditionally served the purpose of increasing
+> the cost of producing keys from a password, thereby also increasing
+> the difficulty of attack. For the methods in this document, a minimum
+> of 1000 iterations is recommended. This will increase the cost of
+> exhaustive search for passwords significantly, without a noticeable
+> impact in the cost of deriving individual keys.
+
+It was published in year 2000 and suggests 1000 rounds. Simply assume a variant
+of Moore's law saying the computational power of a CPU doubles every two years
+and calculate the number of rounds you should use with
+
+`1000 * 2^((YEAR-2000)/2)`
+
+where YEAR is the current year. For year 2015 this gives 181 000 rounds, which
+is a surprisingly good estimate for my computer.
 
 # Under The Hood
 

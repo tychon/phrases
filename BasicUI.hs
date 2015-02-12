@@ -251,16 +251,41 @@ changelock newpassphrase storage =
   let newlockhash = getPBK (fromJust $ props storage) (BS8.pack newpassphrase)
   in storage { lockhash=Just newlockhash }
 
+-- | Ask the user to remember the passphrase.
+-- Returns the plaintext passphrase if it was right or Nothing if it was
+-- entered wrong or cancled.
+rememberPassphrase :: Storage -> IO (Maybe String)
+rememberPassphrase (Storage (Just props) (Just lockhash) _) = do
+  ans <- getPassphrase
+  case ans of
+    Left e -> invalidinput e "" >> return Nothing
+    Right ans -> do
+      let lhash = getPBK props (BS8.pack ans)
+      if lhash == lockhash
+        then do
+          putStrLn "Congrats, you remembered did it!"
+          return $ Just ans
+        else do
+          putStrLn "Sorry, you're wrong."
+          return Nothing
+
 -- | Change the outer salt of the storage.
--- Also recalculates the PBKDF2 and takes lazy seconds.
+-- Also recalculates the PBKDF2 and may take some strict seconds.
 resalt :: String -> Storage -> IO Storage
 resalt passphrase storage = do
   let Just oldprops = props storage
   salt <- genRandomness $ salt_length oldprops
   let props' = oldprops { salt=salt }
-      newlockhash = getPBK props' (BS8.pack passphrase)
-  return Storage { props=Just props', lockhash=Just newlockhash, entries=entries storage }
+      !newlockhash = getPBK props' (BS8.pack passphrase)
+  return Storage{ props=Just props', lockhash=Just newlockhash, entries=entries storage }
 
+-- | Sets the new number of PBKDF2 rounds and recalcs lockhash.
+-- Needs the plaintext passphrase to rerun PBKDF2. May take some strict seconds.
+changePBKDF2Rounds :: Int -> String -> Storage -> Storage
+changePBKDF2Rounds rounds passphrase storage@(Storage (Just prop) _ _) =
+  let prop' = prop{ pbkdf2_rounds=rounds }
+      !newlockhash = getPBK prop' (BS8.pack passphrase)
+  in storage{ props=Just prop', lockhash=Just newlockhash }
 
 --------------------------------------------------------------------------------
 -- Prompt Functions
