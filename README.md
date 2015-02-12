@@ -1,14 +1,8 @@
-### TODO
-
-* formula for pbkdf2 rounds
-* maybe use ForeignPtr and mlock as suggested in
-  http://stackoverflow.com/questions/11932246/against-cold-boot-attacks-how-to-restrain-sensitive-information-in-haskell
-* license!
-
-For more TODOs use `git grep TODO`
-
-
 # Short Intro
+
+`phrases` has the aim to offer you a secure and simple password storage.
+You can store password, asymmetric keys and binary data in it. You shouldn't
+overdo the binary data part since it is loaded to memory en bloc.
 
 After you've got it to run (see section below) you can create your container with `./phrases init teststorage`. This will ask you for a passphrase and create a file in the current directory. You can then do `./phrases open teststorage` to open the storage and change anything. One important thing: Everytime you change something the storage is saved to disk, so you can't restore anything by killing the program. Also: don't miss the information on security I've posted below.
 
@@ -155,6 +149,7 @@ and calculate the number of rounds you should use with
 
 where YEAR is the current year. For year 2015 this gives 181 000 rounds, which
 is a surprisingly good estimate for my computer.
+
 
 # Under The Hood
 
