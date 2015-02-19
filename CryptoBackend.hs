@@ -2,12 +2,13 @@
 module CryptoBackend where
 
 import Control.Exception( assert )
-import Data.Maybe ( fromJust )
+import Data.Maybe ( fromJust, listToMaybe )
 import Numeric ( showHex )
 import Data.ByteString ( ByteString )
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Char8 as BS8 ( singleton, unpack, pack, elemIndex )
-import Text.Read ( readMaybe )
+import qualified Data.ByteString.Char8 as BS8
+    ( singleton, unpack, pack, elemIndex )
+
 -- crypto
 import Crypto.Hash.SHA256 ( hash )
 import Crypto.PBKDF( sha512PBKDF2 )
@@ -85,6 +86,13 @@ instance Ord SEntry where
   Asym{}          <= Field{}         = True
   Field n1 _ _ <= Field n2 _ _ = n1 <= n2
   Field{}    <= _          = False
+
+
+-- | Implement readMaybe from Text.Read thats only available since base-4.6.0.0,
+-- which is not shipped in debian wheezy.
+readMaybe :: Read a => String -> Maybe a
+readMaybe = fmap fst . listToMaybe . reads
+
 
 -- | Simply creates a ByteString containing one NUL character.
 nullbytestring :: ByteString

@@ -1,6 +1,10 @@
 
 module BasicUI where
 
+-- `catch` was removed from Prelude in base-4.6.0.0
+-- But debian wheezy shipped with 4.5.0.0
+import Prelude hiding ( catch )
+
 import System.Exit
 import System.IO
 import System.IO.Error ( isEOFError, isPermissionError )
