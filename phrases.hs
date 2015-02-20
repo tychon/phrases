@@ -16,9 +16,10 @@ import qualified Data.ByteString.Char8 as BS8
 import Text.Regex.TDFA
 import System.Hclip
 
+import EmbeddedContent
 import CryptoBackend
 import BasicUI
-import EmbeddedContent
+import Migrate
 
 data PromptInfo = PromptList [SEntry] | PromptEntry SEntry | NoPromptInfo
 data Prompt = Prompt { path :: String, info :: PromptInfo, storage :: Storage }
