@@ -159,6 +159,8 @@ is a surprisingly good estimate for my computer.
 
 # Under The Hood
 
+For information about version 1 checkout the `v1` tag in git.
+
 ### Haskell coding style:
 * No exceptions in pure code.
 * Document impure behaviour ( exitFailiure, exitSuccess, error, ... )
@@ -222,6 +224,8 @@ How to encrypt:
   IO functions doing the interesting IO things.
 * EmbeddedContent (EmbeddedContent.hs)
   Provide the helptext and the ghc version by loading it on compiletime.
+* Migrate (Migrate.hs)
+  Functions for decrypting version 1 storage and converting it to version 2.
 * Main (phrases.hs)
   Parsing of arguments, the prompt and tying together the basic IO things.
 
