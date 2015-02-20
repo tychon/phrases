@@ -11,8 +11,8 @@ import Data.Maybe ( fromJust )
 import Data.Char ( isPrint, isAscii )
 import Data.List ( isPrefixOf )
 import Data.ByteString ( ByteString )
-import qualified Data.ByteString as BS ( readFile, writeFile )
-import qualified Data.ByteString.Char8 as BS8 ( pack, unpack, empty, foldl' )
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BS8
 import Crypto.Random.DRBG
 import Text.Regex.TDFA
 

@@ -75,7 +75,9 @@ parseargs ["open", pathname] = do
       putStrLn "Enter empty line to clear screen."
       prompt (Prompt pathname NoPromptInfo storage)
 
---TODO implement migrate command
+parseargs ["migrate", srcpath, destpath] = do
+  putStrLn $ "Migration: " ++ srcpath ++ " => " ++ destpath
+  migrate srcpath destpath
 
 parseargs ["dump", storagepath, plainpath] = do
   putStrLn $ "Opening container at " ++ storagepath
