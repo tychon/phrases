@@ -1,4 +1,4 @@
-.PHONY: main test clear
+.PHONY: main test clean
 
 main: embedded-helptext embedded-ghcversion embedded-prompthelp
 	ghc -XTemplateHaskell -XRecordWildCards -XBangPatterns phrases -o phrases
@@ -16,6 +16,6 @@ test:
 	ghc -XRecordWildCards test -o test
 	./test
 
-clear:
+clean:
 	rm -f *.hi *.o embedded-* phrases test
 

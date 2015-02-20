@@ -238,8 +238,8 @@ prompthandle p@(Prompt _ _ storage) ["list"] = do
       return p { info=PromptList newlist }
 
 prompthandle p@(Prompt _ _ storage) ("list":regex:[]) = do
-  -- TODO catch errors on malformed regexes or
-  -- move to other regex library because TDFA doesn't use exceptions
+  -- TODO LATER catch errors on malformed regexes or move to other regex library
+  -- because TDFA doesn't use exceptions
   let newlist = filterEntries regex (entries storage)
   case length newlist of
     0 -> do

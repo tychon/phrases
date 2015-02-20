@@ -29,6 +29,12 @@ Requires the following haskell modules:
 Try `cabal install ...` to get them.
 Use `make` to compile.
 
+Note: The 4.6.0.0 version of the base package is required.
+Debian wheezy comes with base-4.5.0.0 which has two little differences
+that matter here. See commit `28180e4...` on branch `base-4.5.0.0` for how to
+get it working on debian wheezy or any Haskell / GHC distribution using this
+version of the base package. 
+
 # Basic Usage
 
 This helptext is shown by the program with `phrases help`.

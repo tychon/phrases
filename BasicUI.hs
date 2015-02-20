@@ -98,7 +98,7 @@ getFullPath p = do
 
 -- | Read from stdin until user enters EOT / Ctrl-D.
 -- Use with bang pattern to get rid of high memory usage.
--- TODO better implementation, since this may be a memory leak?
+-- TODO LATER better implementation, since this may be a memory leak?
 loadStdin :: IO String
 loadStdin = do
   c <- tryJust (guard . isEOFError) $ hGetChar stdin

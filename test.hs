@@ -6,6 +6,9 @@ import qualified Data.ByteString as BS
 import CryptoBackend
 import BasicUI
 
+-- TODO more exhaustive testing,
+-- use testing framework?
+
 main = do
   let passphrase = "testpassphrase"
   -- encrypt
