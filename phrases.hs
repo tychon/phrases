@@ -109,12 +109,12 @@ listEntries entries = listEntries' 1 entries
 listEntries' :: Int -> [SEntry] -> IO ()
 listEntries' _ [] = putStrLn ""
 listEntries' line (entry:entries) = do
-  -- one line: type (7), num (4), name (17), comment (80-28=52)
+  -- one line: type (7), num (4), name (25), comment (80-36=44)
   let linestr = show line
       paddedline = (take (3 - length linestr) $ repeat ' ') ++ linestr
-      name' = take 15 $ name entry
-      paddedname = name' ++ (take (17 - length name') $ repeat ' ')
-      com = take 52 $ comment entry
+      name' = take 25 $ name entry
+      paddedname = name' ++ (take (25 - length name') $ repeat ' ')
+      com = take 44 $ comment entry
       whole = paddedline ++ " " ++ paddedname ++ com
   case entry of
     Phrase{} -> putStrLn $ "phrase " ++ whole

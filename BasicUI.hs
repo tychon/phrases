@@ -141,7 +141,8 @@ writeASCII wpath text = do
       return ()
     Right () -> putStrLn "Done." >> return ()
 
--- | Load data from file, aborts when it's not ASCII
+-- | Load binary data from file
+-- Returns IO Nothing if it fails.
 loadBytes :: String -> IO (Maybe ByteString)
 loadBytes lpath = do
   loadpath <- getFullPath lpath
@@ -318,14 +319,9 @@ getUniqueName existing = do
   case ans of
     Left e -> invalidinput e "" >> return Nothing
     Right name -> do
-      if name =~ "^[a-zA-Z0-9_-]+$"
-        then
-          if doesNameExist name existing
-            then putStrLn "Name already assigned." >> return Nothing
-            else return $ Just name
-        else do
-          putStrLn "Name must be matching ^[a-zA-Z0-9_-]+$ ."
-          return Nothing
+      if doesNameExist name existing
+        then putStrLn "Name already assigned." >> return Nothing
+        else return $ Just name
 
 -- | Add an entry at the right place to maintain lexicographic order.
 addEntry :: SEntry -> [SEntry] -> [SEntry]
