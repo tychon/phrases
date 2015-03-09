@@ -80,16 +80,18 @@ This helptext is shown if you type `help` in the programs
 command prompt. It's embedded on compiletime into the haskell code.
 ```
 %% BEGIN_PROMPTHELP
-quit        Exit program (unsupported on some systems, try 'exit')
-exit        Exit program (deprecated, use 'quit')
-stats       Show stats about storage.
-save        Save storage to file again (pretty useless).
-change-lock Change passphrase of container.
-test        Enter a passphrase and test if it matches the current one.
-resalt      Change permanent salt of container
-iterations  Change the number of PBKDF2 rounds.
-list REGEX  Search in names of entries for POSIX regex.
-new TYPE    Create new entry, types: phrase, asym, field, data
+quit         Exit program (unsupported on some systems, try 'exit')
+exit         Exit program (deprecated, use 'quit')
+stats        Show stats about storage.
+save         Save storage to file again (pretty useless).
+change-lock  Change passphrase of container.
+test         Enter a passphrase and test if it matches the current one.
+resalt       Change permanent salt of container
+iterations   Change the number of PBKDF2 rounds.
+merge [FIlE] Merge another storage into this one.
+
+list REGEX   Search in names of entries for POSIX regex.
+new TYPE     Create new entry, types: phrase, asym, field, data
 
 With selected entry:
   plain       Show plaintext password on stdout.

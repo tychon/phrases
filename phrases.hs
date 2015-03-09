@@ -227,6 +227,9 @@ prompthandle p@(Prompt path _ storage@(Storage (Just prop) _ _)) ["iterations"] 
               putStrLn "Not a number."
               return p
 
+prompthandle p@(Prompt _ _ storage) ["merge"] = do
+  undefined
+
 prompthandle p@(Prompt _ _ storage) ["list"] = do
   let newlist = entries storage
   case length newlist of
