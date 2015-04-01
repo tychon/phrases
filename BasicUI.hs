@@ -25,13 +25,15 @@ genRandomness length = do
   let (bytes, _) = throwLeft $ genBytes length gen
   return bytes
 
+-- | Helperfunction to display exceptions and a short error message.
 invalidinput :: SomeException -> String -> IO ()
 invalidinput e msg = do
   putStrLn "Invalid input."
   putStrLn $ "Exception: " ++ (show e)
   putStrLn msg
 
--- | Let the user inter input.
+
+-- | Let the user enter input.
 -- Returns (Right String) when the user successfully entered something.
 -- Returns (Left SomeException) when the user didn't want to enter something.
 -- Contains a catch all clause. Use with care!
@@ -72,6 +74,7 @@ getPassphraseOrFail = do
     Right passphrase -> do
       return passphrase
 
+
 -- | Initialize Storage with passphrase and standard properties.
 -- Generate permanent salt in (salt props).
 -- innersalt will still be empty ByteString in (innersalt props).
@@ -82,6 +85,7 @@ initStdStorage passphrase = do
   let props' = props { salt=salt }
       lockhash = getPBK props' (BS8.pack passphrase)
   return Storage { props=Just props', lockhash=Just lockhash, entries=[] }
+
 
 -- http://stackoverflow.com/questions/18610313/haskell-join-gethomedirectory-string
 -- | Helper function for getFullPath, replaces leading tilde by homePath.
@@ -96,9 +100,10 @@ getFullPath p = do
   homePath <- getHomeDirectory
   return $ fullPath homePath p
 
+
 -- | Read from stdin until user enters EOT / Ctrl-D.
 -- Use with bang pattern to get rid of high memory usage.
--- TODO LATER better implementation, since this may be a memory leak?
+-- TODO better implementation, since this may be a memory leak?
 loadStdin :: IO String
 loadStdin = do
   c <- tryJust (guard . isEOFError) $ hGetChar stdin
@@ -156,6 +161,7 @@ loadBytes lpath = do
     Right content ->
       return $ Just content
 
+-- | Write bytes to file and show error on permission error.
 writeBytes :: String -> ByteString -> IO ()
 writeBytes wpath bytes = do
   writepath <- getFullPath wpath
@@ -168,6 +174,7 @@ writeBytes wpath bytes = do
       putStrLn $ show e
       return ()
     Right () -> putStrLn "Done." >> return ()
+
 
 --------------------------------------------------------------------------------
 -- Functions for cmd line commands
@@ -212,18 +219,20 @@ open path = do
     else return ()
   if (version props) /= currentversion
     then do
-      putStrLn $ "Container version: "++(show $ version props)++" Supported version: "++(show currentversion)
+      putStrLn $ "Container version: "++(show $ version props)
+      putStrLn $ "Supported version: "++(show currentversion)
       putStrLn "The version of this container is not supported."
       exitFailure
     else return ()
   passphrasestr <- getPassphraseOrFail
-  (lockhash, hash, serialized) <- case decrypt props (BS8.pack passphrasestr) fcontent' of
+  (lockhash, hash, serialized) <-
+      case decrypt props (BS8.pack passphrasestr) fcontent' of
     Nothing -> do
       putStrLn "Authorization failed."
       exitFailure
     Just x -> return x
   putStrLn "Authorization complete.\n"
-  storage <- case checkHash hash serialized of
+  storage <- case checkHashAndParse hash serialized of
     Nothing -> do
       putStrLn "Hash doesn't match content."
       putStrLn "Data corrupted."
@@ -231,6 +240,7 @@ open path = do
     Just x -> return x
   return storage { props=Just props, lockhash=Just lockhash }
 
+-- | Helper function printing storage properties to stdout
 printStorageProps (Just StorageProps{..}) = do
   putStrLn $ "  Version: "++(show version)
   putStrLn $ "  PBKDF2 rounds: "++(show pbkdf2_rounds)
@@ -240,6 +250,7 @@ printStorageProps (Just StorageProps{..}) = do
   putStrLn $ "  Inner salt length: "++(show innersalt_length)
   putStrLn $ "  Inner salt: "++(printHex innersalt)
 
+-- | Prints stats and storage properties to stdout
 printStorageStats Storage{..} = do
   putStrLn $ "Number of entries: "++(show $ length entries)
   putStrLn "Storage Properties:"

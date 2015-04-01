@@ -1,32 +1,20 @@
 
 module CryptoBackend where
 
-import Control.Exception( assert )
+import Control.Exception ( assert )
 import Data.Maybe ( fromJust )
 import Numeric ( showHex )
 import Data.ByteString ( ByteString )
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Char8 as BS8 ( singleton, unpack, pack, elemIndex )
+import qualified Data.ByteString.Char8 as BS8
 import Text.Read ( readMaybe )
 -- crypto
 import Crypto.Hash.SHA256 ( hash )
-import Crypto.PBKDF( sha512PBKDF2 )
-import Crypto.Random.DRBG
-import Data.Bits( xor )
+import Crypto.PBKDF ( sha512PBKDF2 )
+import Crypto.Random.DRBG ( HmacDRBG, newGen, genBytes, throwLeft )
+import Data.Bits ( xor )
 
 currentversion = 2 :: Int
-
--- legacy storage type
-data StorageLegacy1 = StorageLegacy1 {
-  entrieslegacy :: [SEntry],
-  lockhashlegacy :: String,
-  saltlegacy :: String }
-    deriving (Show, Read)
-data SEntryLegacy1 = SEntryLegacy1 {
-  namelegacy,
-  commentlegacy,
-  phraselegacy :: String }
-    deriving (Show, Read)
 
 -- storage type
 data StorageProps = StorageProps {
@@ -86,6 +74,7 @@ instance Ord SEntry where
   Field n1 _ _ <= Field n2 _ _ = n1 <= n2
   Field{}    <= _          = False
 
+
 -- | Simply creates a ByteString containing one NUL character.
 nullbytestring :: ByteString
 nullbytestring = BS8.singleton '\0'
@@ -110,6 +99,7 @@ getStdStorageProps = StorageProps {
   pbkdf2_length = 64,
   salt = BS.empty,
   innersalt = BS.empty }
+
 
 -- | Check StorageProps for sanity.
 checkStorageProps StorageProps{..}
@@ -160,12 +150,13 @@ printHex = concat . map (flip showHex "") . BS.unpack
 
 -- | Check if readhash and hash of plaintext match, then parse Storage.
 -- Returns Nothing when hashes didn't match, Just Storage otherwise.
-checkHash :: ByteString -> ByteString -> Maybe Storage
-checkHash readhash plaintext =
+checkHashAndParse :: ByteString -> ByteString -> Maybe Storage
+checkHashAndParse readhash plaintext =
   let texthash = hash plaintext
   in if readhash /= texthash
       then Nothing
       else readMaybe $ BS8.unpack plaintext
+
 
 -- | Encrypts the storage with its contained properties and an extra innersalt.
 -- You have to generate a newinnersalt yourself because it is an IO operation.

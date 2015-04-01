@@ -1,18 +1,38 @@
 # Short Intro
 
-`phrases` has the aim to offer you a secure and simple password storage.
-You can store password, asymmetric keys and binary data in it. You shouldn't
-overdo the binary data part since it is loaded to memory en bloc.
+`phrases` has the aim to offer you a secure and simple password
+storage.  You can store password, asymmetric keys and binary data in
+it. You shouldn't overdo the binary data part since it is loaded to
+memory en bloc.
 
-After you've got it to run (see section below) you can create your container with `./phrases init teststorage`. This will ask you for a passphrase and create a file in the current directory. You can then do `./phrases open teststorage` to open the storage and change anything. One important thing: Everytime you change something the storage is saved to disk, so you can't restore anything by killing the program. Also: don't miss the information on security I've posted below.
+After you've got it to run (see section below) you can create your
+container with `./phrases init teststorage`. This will ask you for a
+passphrase and create a file in the current directory. You can then do
+`./phrases open teststorage` to open the storage and change
+anything. One important thing: Everytime you change something the
+storage is saved to disk, so you can't restore anything by killing the
+program. Also: don't miss the information on security I've posted
+below.
 
-After you've authorized and the file was decrypted you get a command prompt. There are different prompt symbols. The simplest one is `>` you should then type `list` get a list of all entries or `list hub` to get a list of all entries containing `hub` in their name (case insensitive regex).
+After the file was decrypted you get a command prompt. There are
+different prompt symbols. The simplest one is `>` you should then type
+`list` get a list of all entries or `list hub` to get a list of all
+entries containing `hub` in their name (case insensitive regex).
 
-The prompt then changes to `SELECT >` and you should enter a number giving one of the results in the list and the prompt changes to `name >` where `name` is the name of the selected entry. Now you can use the type specific commands (listed in Commands on Prompt) too.
+The prompt then changes to `SELECT >` and you should enter a number
+giving one of the results in the list and the prompt changes to `name
+>` where `name` is the name of the selected entry. Now you can use the
+type specific commands (listed in Commands on Prompt) too.
 
-To create a new entry for your github password say `new phrase` then it will ask you for a name. There you should enter something like `tychon@github` so you can recognise this password later. Then enter a comment or leave it empty, then enter your passphrase.
+To create a new entry for your github password say `new phrase` then
+it will ask you for a name. There you should enter something like
+`tychon@github` so you can recognise this password later. Then enter a
+comment or leave it empty, then enter your passphrase.
 
-If you wan't to know a password use `name > plain` to show in terminal or `name > clipboard` to copy to clipboard without printing in plaintext to your terminal. The clipboard commands vary for the different data types.
+If you wan't to know a password use `name > plain` to show in terminal
+or `name > clipboard` to copy to clipboard without printing in
+plaintext to your terminal. The clipboard commands vary for the
+different data types.
 
 To delete an entry, select it and type `delete`.
 
@@ -29,13 +49,13 @@ Requires the following haskell modules:
 Try `cabal install ...` to get them.
 Use `make` to compile.
 
-Note: The 4.6.0.0 version of the base package is required.
-Debian wheezy comes with base-4.5.0.0 which has two little differences
-that matter here. See commit `28180e4...` on branch `base-4.5.0.0` for how to
-get it working on debian wheezy or any Haskell / GHC distribution using this
-version of the base package. 
+Note: The 4.6.0.0 version of the base package is required.  Debian
+wheezy comes with base-4.5.0.0 which has two little differences that
+matter here. See commit `28180e4...` on branch `base-4.5.0.0` for how
+to get it working on debian wheezy or any Haskell / GHC distribution
+using this version of the base package.
 
-# Basic Usage
+# Usage
 
 This helptext is shown by the program with `phrases help`.
 It is extracted by awk in the makefile and embedded into the Haskell code:
@@ -88,7 +108,8 @@ change-lock  Change passphrase of container.
 test         Enter a passphrase and test if it matches the current one.
 resalt       Change permanent salt of container
 iterations   Change the number of PBKDF2 rounds.
-merge [FIlE] Merge another storage into this one.
+merge [FILE]   Merge another storage into this one.
+export [FILE]  Export changes to another storage.
 
 list REGEX   Search in names of entries for POSIX regex.
 new TYPE     Create new entry, types: phrase, asym, field, data
@@ -123,18 +144,20 @@ use Ctrl-D (maybe 2 times) to finsh.
 
 # Notes on Security
 
-* Since Haskell trades memory for speed, your passwords may end up all over
-  your memory. You should check if your system applies appropriate memory
-  protection measures.
-* The hash of your passphrase is stored in memory, so the program can save
-  your file after every change.
+* Since Haskell trades memory for speed, your passwords may end up all
+  over your memory. You should check if your system applies
+  appropriate memory protection measures.
+* The hash of your passphrase is stored in memory, so the program can
+  save your file after every change.
 * The security of this program relies heavily on the modules listes in
-  'Requirements'. I have not reviewed the code nor do i have to knowledge to
-  review strong crypto algorithms. I simply assume that the algorithms provided
-  in mainstream packages on hackage are well-imlemented.
-* The randomness comes from System.Crypto.Random which uses your systems
-  secure entropy. Make sure your system can provide secure entropy in the
-  way required. This module seems to be untested on Windows. Refer to doc.
+  'Requirements'. I have not reviewed the code nor do i have to
+  knowledge to review strong crypto algorithms. I simply assume that
+  the algorithms provided in mainstream packages on hackage are
+  well-imlemented.
+* The randomness comes from System.Crypto.Random which uses your
+  systems secure entropy. Make sure your system can provide secure
+  entropy in the way required. This module seems to be untested on
+  Windows. Refer to doc.
 * Don't overdo the security here. You are going to post the password
   in your crappy browser anyways.
 
@@ -142,38 +165,54 @@ use Ctrl-D (maybe 2 times) to finsh.
 
 To quote the RFC 2898:
 
-> An iteration count has traditionally served the purpose of increasing
-> the cost of producing keys from a password, thereby also increasing
-> the difficulty of attack. For the methods in this document, a minimum
-> of 1000 iterations is recommended. This will increase the cost of
-> exhaustive search for passwords significantly, without a noticeable
-> impact in the cost of deriving individual keys.
+> An iteration count has traditionally served the purpose of
+> increasing the cost of producing keys from a password, thereby also
+> increasing the difficulty of attack. For the methods in this
+> document, a minimum of 1000 iterations is recommended. This will
+> increase the cost of exhaustive search for passwords significantly,
+> without a noticeable impact in the cost of deriving individual keys.
 
-It was published in year 2000 and suggests 1000 rounds. Simply assume a variant
-of Moore's law saying the computational power of a CPU doubles every two years
-and calculate the number of rounds you should use with
+It was published in year 2000 and suggests 1000 rounds. Simply assume
+a variant of Moore's law saying the computational power of a CPU
+doubles every two years and calculate the number of rounds you should
+use with
 
 `1000 * 2^((YEAR-2000)/2)`
 
-where YEAR is the current year. For year 2015 this gives 181 000 rounds, which
-is a surprisingly good estimate for my computer.
+where YEAR is the current year. For year 2015 this gives 181 000
+rounds, which is a surprisingly good estimate for my computer.
 
+# Versions
+
+The versions are indicated by the latest git tag. Major versions match
+the storage versions and are not backward compatible.
+
+* v2.1: Support sychronisation between multiple files.
+* v2: Supports passphrases, key-pairs and binary data; appends random
+  suffix to lockhash to change cipher on every write hiding small
+  changes in plaintext.
+
+* v1: First release with static lockhash supporting only passphrases.
 
 # Under The Hood
 
 For information about version 1 checkout the `v1` tag in git.
 
 ### Haskell coding style:
+
 * No exceptions in pure code.
 * Document impure behaviour ( exitFailiure, exitSuccess, error, ... )
 * Many else I don't know yet, still learning ...
 
 ### Embedded files
-The help texts and the GHC version are embedded into the code on compiletime
-by Template Haskell. Have a look at EmbeddedContent.hs
-When the embedded file content changed, run 'make clean' and then 'make'
+
+The help texts and the GHC version are embedded into the code on
+compiletime by Template Haskell. Have a look at EmbeddedContent.hs
+When the embedded file content changed, run 'make clean' and then
+'make'
 
 ### Storage file layout:
+
 ```
 File:
 |StorageProps|0|hash|hash|representation of Storage data type|
@@ -184,12 +223,12 @@ File:
 * length of salt: min 16 bytes
 * length of innersalt: min 16 bytes
 
-The salt is not changed. Use 'resalt' to get new salt.
-The innersalt is changed every time the file is saved to make sure the byte
-stream from the DRBG is not the same as the previous one.
-The two hashes are compared to see if the passphrase was correct, then the
-contained serialized storage's hash is checked against one of them to ensure
-the data is not corrupted. The lockhash is generated by running PBKDF2 on
+The salt is not changed. Use 'resalt' to get new salt.  The innersalt
+is changed every time the file is saved to make sure the byte stream
+from the DRBG is not the same as the previous one.  The two hashes are
+compared to see if the passphrase was correct, then the contained
+serialized storage's hash is checked against one of them to ensure the
+data is not corrupted. The lockhash is generated by running PBKDF2 on
 passphrase and salt.
 
 How to decrypt:
@@ -199,13 +238,15 @@ How to decrypt:
   * checkStorageProps
     * check them for sane values
   * decrypt
-    * retrieve passphrase
+    * get passphrase from user
     * put passphrase and salt into sha512PBKDF2
     * seed HashDRBG with PBKDF2 result concatenated with innersalt
     * xor byte stream from DRBG with rest of file
-    * check if the two hashes match
-  * checkHash
-    * check if one hash and the SHA256 of the plaintext storage data match
+    * check if the two hashes at beginning of decrypted data match
+    * Congrats! Authentication complete.
+  * checkHashAndParse
+    * check if one hash and the SHA256 of the plaintext storage data
+      match If they don't: poor you, the data must be corrupted.
     * use 'readMaybe' to cast String to Storage
   * set lockhash and props in Storage
 
@@ -213,21 +254,21 @@ How to encrypt:
 
   * clear props and lockhash from storage
   * generate hash of serialized storage
-  * generate innersalt
+  * generate new random innersalt
   * seed HashDRBG with lockhash concatenated with new innersalt
-  * construct plaintext to be encrypted: concat two hashes and 'show storage'
+  * construct plaintext to be encrypted: concat two hashes and 'show
+    storage'
   * xor byte stream from DRBG with plaintext
 
 ### The modules
 
-* CryptoBackend (CryptoBackend.hs)
-  All pure functions for en- and decryption.
-* BasicUI (BasicUI.hs)
-  IO functions doing the interesting IO things.
-* EmbeddedContent (EmbeddedContent.hs)
-  Provide the helptext and the ghc version by loading it on compiletime.
-* Migrate (Migrate.hs)
-  Functions for decrypting version 1 storage and converting it to version 2.
-* Main (phrases.hs)
-  Parsing of arguments, the prompt and tying together the basic IO things.
+* CryptoBackend (CryptoBackend.hs) All pure functions for en- and
+  decryption for current storage version.
+* BasicUI (BasicUI.hs) IO functions doing the interesting IO things.
+* EmbeddedContent (EmbeddedContent.hs) Provide the helptext and the
+  ghc version by loading it on compiletime.
+* Migrate (Migrate.hs) Functions for decrypting version 1 storage and
+  converting it to version 2.
+* Main (phrases.hs) Parsing of arguments, the prompt and tying
+  together the basic IO things.
 
