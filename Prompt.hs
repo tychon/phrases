@@ -22,6 +22,8 @@ listEntries entries = listEntries' 1 entries
 listEntries' :: Int -> [SEntry] -> IO ()
 listEntries' _ [] = putStrLn ""
 listEntries' line (entry:entries) = do
+  -- use terminal-size to get max width
+  -- https://hackage.haskell.org/package/terminal-size-0.3.0/docs/System-Console-Terminal-Size.html
   -- one line: type (7), num (4), name (25), comment (80-36=44)
   let linestr = show line
       paddedline = (take (3 - length linestr) $ repeat ' ') ++ linestr
@@ -35,6 +37,8 @@ listEntries' line (entry:entries) = do
     Field{}  -> putStrLn $ "field  " ++ whole
   listEntries' (line+1) entries
 
+
+-- | Start prompt loop
 prompt :: String -> Storage -> IO ()
 prompt pathname storage = promptloop (Prompt pathname NoPromptInfo storage)
 
@@ -54,6 +58,7 @@ promptloop p@(Prompt path info storage) = do
       p' <- prompthandle p (words cmd)
       promptloop p'
   exitFailure
+
 
 prompthandle :: Prompt -> [String] -> IO Prompt
 prompthandle p [] = do
@@ -82,6 +87,7 @@ prompthandle p@(Prompt path _ storage) ["stats"] = do
 prompthandle p@(Prompt path _ storage) ["save"] = do
   save path storage
   return p
+
 
 prompthandle p@(Prompt path _ storage) ["change-lock"] = do
   putStrLn "Think of a new passphrase:"
@@ -144,8 +150,25 @@ prompthandle p@(Prompt path _ storage@(Storage (Just prop) _ _)) ["iterations"] 
               putStrLn "Not a number."
               return p
 
-prompthandle p@(Prompt _ _ storage) ["merge"] = do
+
+prompthandle p@(Prompt localpath _ storage) ["merge"] = do
+  putStr "Path to file to merge: "
+  remotepath <- getPromptAns
+  case remotepath of
+    Left e -> do
+      invalidinput e ""
+      return p
+    Right remotepath -> do
+      let Just lh = lockhash storage
+      res <- openWithLockhashRepeat remotepath lh
+      case res of
+        Nothing -> return p
+        Just storage -> do
+          undefined
+
+prompthandle p@(Prompt _ _ storage) ["export"] = do
   undefined
+
 
 prompthandle p@(Prompt _ _ storage) ["list"] = do
   let newlist = entries storage

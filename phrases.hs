@@ -4,7 +4,7 @@ module Main (main) where
 import System.Environment ( getArgs )
 import System.Exit ( exitSuccess, exitFailure )
 import System.IO ( putStr, putStrLn )
-import System.Directory ( canonicalizePath, doesFileExist )
+import System.Directory ( doesFileExist )
 import System.Posix.Signals ( Handler(Catch), keyboardSignal, installHandler )
 import Control.Exception ( AsyncException(UserInterrupt), throwTo )
 import Control.Concurrent ( myThreadId )
@@ -13,7 +13,7 @@ import qualified Data.ByteString as BS
 
 import EmbeddedContent ( ghcversion, helptext )
 import CryptoBackend ( currentversion )
-import BasicUI ( newStorage, open, save, printStorageStats )
+import BasicUI ( newStorage, openAskPassphrase, save, printStorageStats )
 import Migrate ( migrate )
 import Prompt ( prompt )
 
@@ -54,16 +54,13 @@ parseargs ["init", pathname] = do
       putStrLn $ "Empty storage created."
       exitSuccess
 
--- | Open container and enter prompt loop on 'open' command
+-- | Open container and enter prompt loop.
 parseargs ["open", pathname] = do
   putStrLn $ "Opening container at " ++ pathname
-  existing <- doesFileExist pathname
-  if not existing
-    then do
-      putStrLn "File doesn't exist. Exit."
-      exitFailure
-    else do
-      storage <- open pathname
+  res <- openAskPassphrase pathname
+  case res of
+    Left _ -> exitFailure
+    Right storage -> do
       printStorageStats storage
       putStrLn "Type 'help' for a list of available commands."
       putStrLn "Enter empty line to clear screen."
@@ -75,13 +72,10 @@ parseargs ["migrate", srcpath, destpath] = do
 
 parseargs ["dump", storagepath, plainpath] = do
   putStrLn $ "Opening container at " ++ storagepath
-  existing <- doesFileExist storagepath
-  if not existing
-    then do
-      putStrLn "Container file doesn't exist. Exit."
-      exitFailure
-    else do
-      storage <- open storagepath
+  res <- openAskPassphrase storagepath
+  case res of
+    Left _ -> exitFailure
+    Right storage -> do
       putStrLn $ "Dumping into " ++ plainpath
       writeFile plainpath $ show storage
       putStrLn "Done."

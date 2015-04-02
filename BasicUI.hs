@@ -4,7 +4,7 @@ module BasicUI where
 import System.Exit
 import System.IO
 import System.IO.Error ( isEOFError, isPermissionError )
-import System.Directory ( getHomeDirectory )
+import System.Directory ( getHomeDirectory, doesFileExist )
 import Control.Exception ( Exception, SomeException, catch, try, tryJust )
 import Control.Monad ( guard )
 import Data.Maybe ( fromJust )
@@ -191,54 +191,108 @@ newStorage = do
     else do
       initStdStorage passphrase
 
--- | Generate a new inner salt and save the encrypted storage to the given path.
-save :: String -> Storage -> IO ()
-save path storage = do
-  innersalt <- genRandomness (innersalt_length $ fromJust $ props storage)
-  let fcontent = encrypt storage innersalt
-  -- the `!x <- ...` forces strict evaluation (I think :-/ )
-  !x <- BS.writeFile path fcontent
-  putStrLn $ "Saved to "++path
 
--- | Opens the container at the given path.
--- Calls exitFailure if anything goes wrong.
-open :: String -> IO Storage
-open path = do
-  fcontent <- BS.readFile path
-  let (maybeprops, fcontent') = readProps fcontent
-  props <- case maybeprops of
-    Nothing -> do
-      putStrLn "Could not read plaintext properties of storage."
-      putStrLn "Probably not a valid container file or a wrong version :-("
-      exitFailure
-    Just props -> return props
-  if not $ checkStorageProps props
+data DecryptionError = IOError | WrongKey
+
+-- | Ask user for passphrase and open storage.
+openAskPassphrase :: String
+                  -> IO (Either DecryptionError Storage)
+openAskPassphrase path = do
+  res <- openPrepare path
+  case res of
+    Nothing -> return $ Left IOError
+    Just (props, fcontent) -> do
+      passphrase <- getPassphrase
+      case passphrase of
+        Left e -> do
+          invalidinput e ""
+          return $ Left IOError
+        Right passphrase -> do
+          let lockhash = getPBK props (BS8.pack passphrase)
+          openFinalize props lockhash fcontent
+
+openAskPassphraseRepeat :: String -> IO (Maybe Storage)
+openAskPassphraseRepeat path = do
+  res <- openAskPassphrase path
+  case res of
+    Left IOError -> return Nothing
+    Left WrongKey -> openAskPassphraseRepeat path
+    Right storage -> return $ Just storage
+
+-- | Open storage using given lockhash.
+openWithLockhash :: String
+                 -> ByteString
+                 -> IO (Either DecryptionError Storage)
+openWithLockhash path lockhash = do
+  res <- openPrepare path
+  case res of
+    Nothing -> return $ Left IOError
+    Just (props, fcontent) ->
+      openFinalize props lockhash fcontent
+
+openWithLockhashRepeat :: String -> ByteString -> IO (Maybe Storage)
+openWithLockhashRepeat path lockhash = do
+  putStrLn "Trying known salt and key combination ..."
+  res <- openWithLockhash path lockhash
+  case res of
+    Left IOError -> return Nothing
+    Left WrongKey -> openAskPassphraseRepeat path
+    Right storage -> do
+      putStrLn "Remote storage was a copy of this storage."
+      return $ Just storage
+
+-- | Reads file and parses storage properties
+openPrepare :: String -> IO (Maybe (StorageProps, ByteString))
+openPrepare path = do
+  existing <- doesFileExist path
+  if not existing
     then do
-      putStrLn "WARNING: The standard property requirements are not met."
-      putStrLn "WARNING: This container is most probably unsafe."
-    else return ()
-  if (version props) /= currentversion
-    then do
-      putStrLn $ "Container version: "++(show $ version props)
-      putStrLn $ "Supported version: "++(show currentversion)
-      putStrLn "The version of this container is not supported."
-      exitFailure
-    else return ()
-  passphrasestr <- getPassphraseOrFail
-  (lockhash, hash, serialized) <-
-      case decrypt props (BS8.pack passphrasestr) fcontent' of
+      putStrLn "File doesn't exist."
+      return Nothing
+    else do
+      fcontent <- BS.readFile path
+      let (props, fcontent') = readProps fcontent
+      case props of
+        Nothing -> do
+          putStrLn "Could not read plaintext properties of remote storage."
+          putStrLn "Probably not a valid storage file or a wrong version :-("
+          return Nothing
+        Just props -> do
+          if not $ checkStorageProps props
+            then do
+              putStrLn "WARNING: The standard property requirements are not met."
+              putStrLn "WARNING: The storage is most probably unsafe."
+            else return ()
+          if (version props) /= currentversion
+            then do
+              putStrLn $ "Container version: "++(show $ version props)
+              putStrLn $ "Supported version: "++(show currentversion)
+              putStrLn "The version of remote storage is not supported."
+              return Nothing
+            else
+	      return $ Just (props, fcontent')
+
+-- | Try to open storagen with given lockhash.
+openFinalize :: StorageProps
+             -> ByteString
+             -> ByteString
+             -> IO (Either DecryptionError Storage)
+openFinalize props lockhash encrypted = do
+  case decryptWithLockhash props lockhash encrypted of
     Nothing -> do
       putStrLn "Authorization failed."
-      exitFailure
-    Just x -> return x
-  putStrLn "Authorization complete.\n"
-  storage <- case checkHashAndParse hash serialized of
-    Nothing -> do
-      putStrLn "Hash doesn't match content."
-      putStrLn "Data corrupted."
-      exitFailure
-    Just x -> return x
-  return storage { props=Just props, lockhash=Just lockhash }
+      return $ Left WrongKey
+    Just (hash, serialized) -> do
+      putStrLn "Authorization complete.\n"
+      case checkHashAndParse hash serialized of
+        Nothing -> do
+          putStrLn "Hash doesn't match content."
+          putStrLn "Data corrupted."
+          return $ Left IOError
+        Just storage ->
+          return $ Right storage { props=Just props
+                                 , lockhash=Just lockhash }
+
 
 -- | Helper function printing storage properties to stdout
 printStorageProps (Just StorageProps{..}) = do
@@ -255,6 +309,20 @@ printStorageStats Storage{..} = do
   putStrLn $ "Number of entries: "++(show $ length entries)
   putStrLn "Storage Properties:"
   printStorageProps props
+
+
+-- | Generate a new inner salt and save the encrypted storage to the given path.
+save :: String -> Storage -> IO ()
+save path storage = do
+  innersalt <- genRandomness (innersalt_length $ fromJust $ props storage)
+  let fcontent = encrypt storage innersalt
+  -- the `!x <- ...` forces strict evaluation (I think :-/ )
+  !x <- BS.writeFile path fcontent
+  putStrLn $ "Saved to "++path
+
+
+--------------------------------------------------------------------------------
+-- Prompt Functions
 
 -- | Change the passphrase of the storage
 -- The lockhash PBKDF2 is recalculated so it takes lazy seconds.
@@ -299,8 +367,6 @@ changePBKDF2Rounds rounds passphrase storage@(Storage (Just prop) _ _) =
       !newlockhash = getPBK prop' (BS8.pack passphrase)
   in storage{ props=Just prop', lockhash=Just newlockhash }
 
---------------------------------------------------------------------------------
--- Prompt Functions
 
 -- | Returns all entries whose names match the given regex.
 filterEntries :: String -> [SEntry] -> [SEntry]

@@ -114,27 +114,40 @@ checkStorageProps StorageProps{..}
   | otherwise
     = False
 
--- | Read the StorageProps from file content.
--- Returns the Maybe StorageProps and the remaining content.
--- Returns Nothing when read failed.
--- Don't forget to call checkStorageProps.
+-- | Read the StorageProps from file content.  Returns the Maybe
+-- StorageProps and the remaining content.  Returns Nothing when read
+-- failed.  Don't forget to call checkStorageProps.
+
 readProps :: ByteString -> (Maybe StorageProps, ByteString)
 readProps fcontent =
-  let propsend = fromJust $ BS8.elemIndex '\0' fcontent -- search for first nullbyte in file
-      (propsstr, fcontent') = (BS.take propsend fcontent, BS.drop (propsend+1) fcontent)
+  let -- search for first nullbyte in file
+      propsend = fromJust $ BS8.elemIndex '\0' fcontent
+      (propsstr, fcontent') = ( BS.take propsend fcontent
+                              , BS.drop (propsend+1) fcontent)
       props = readMaybe (BS8.unpack propsstr) :: Maybe StorageProps
   in (props, fcontent')
 
--- | Decrypt an container when you have its props.
--- Takes the StorageProps the passphrase and the file content left after
--- consuming the StorageProps.
--- Returns Nothing if hashes don't match, Just (lockhash, hash, plaintext) in
--- case the passphrase worked. You still have to check the hash against the
--- plaintext and set props and lockhash in the parsed storage.
-decrypt :: StorageProps -> ByteString -> ByteString -> Maybe (ByteString, ByteString, ByteString)
-decrypt props@StorageProps{..} passphrase encrypted =
+-- | Decrypt an container when you have its props and the passphrase.
+-- Returns lockhash and result of decryptWithLockhash.
+decrypt :: StorageProps
+        -> ByteString
+	-> ByteString
+	-> (ByteString, Maybe (ByteString, ByteString))
+decrypt props passphrase encrypted =
   let lockhash = (getPBK props passphrase)
-      gen = getDRBG $ BS.append lockhash innersalt
+  in (lockhash, decryptWithLockhash props lockhash encrypted)
+
+-- | Decrypt storage with known properties and lockhash.
+-- Returns Nothing if hashes don't match (lockhash is wrong)
+-- or (Just (hash, plaintext)) in case the lockhash is right.
+-- You still have to check the hash against the plaintext and set
+-- props and lockhash in the parsed storage.
+decryptWithLockhash :: StorageProps
+                    -> ByteString
+		    -> ByteString
+		    -> Maybe (ByteString, ByteString)
+decryptWithLockhash props lockhash encrypted =
+  let gen = getDRBG $ BS.append lockhash (innersalt props)
       (cipher, _) = throwLeft $ genBytes (BS.length encrypted) gen
       decrypted = BS.pack $ BS.zipWith (xor) encrypted cipher
       -- check hashes
@@ -142,7 +155,7 @@ decrypt props@StorageProps{..} passphrase encrypted =
       (hash2, plaintext) = BS.splitAt 32 decrypted'
   in if hash1 /= hash2
       then Nothing
-      else Just (lockhash, hash1, plaintext)
+      else Just (hash1, plaintext)
 
 -- | Pretty print ByteString as hex chars. Use to display hash.
 printHex :: ByteString -> String
