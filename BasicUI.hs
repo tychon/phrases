@@ -359,6 +359,33 @@ resalt passphrase storage = do
       !newlockhash = getPBK props' (BS8.pack passphrase)
   return Storage{ props=Just props', lockhash=Just newlockhash, entries=entries storage }
 
+
+merge :: Storage -> Storage -> Storage
+merge source dest = do
+  undefined -- TODO
+
+diff :: [SEntry] -- source
+     -> [SEntry] -- destination
+     -> ([SEntry], [SEntry], [SEntry]) -- (new, changed, deleted)
+diff [] dest = ([], [], dest)
+diff (s:source) dest =
+  undefined
+
+diffConsumeElem :: SEntry -> [SEntry] -> Either String (SEntry, String)
+diffConsumeElem s [] = Nothing
+diffConsumeElem s (d:dest) =
+  if name s == name d
+    then
+      case (s, d) of
+        (Phrase sn sc sp, Phrase _ dc dp) ->
+          let hint = ((if sc /= dc then "comment changed; " else "")
+                     ++ (if sp /= dp then "phrase changed;" else "")
+          in Right (s, hint)
+	-- TODO other types
+	(s, d) -> Left (name s) -- s and d are of different type
+    else diffConsumeElem s dest
+
+
 -- | Sets the new number of PBKDF2 rounds and recalcs lockhash.
 -- Needs the plaintext passphrase to rerun PBKDF2. May take some strict seconds.
 changePBKDF2Rounds :: Int -> String -> Storage -> Storage

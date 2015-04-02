@@ -109,7 +109,6 @@ test         Enter a passphrase and test if it matches the current one.
 resalt       Change permanent salt of container
 iterations   Change the number of PBKDF2 rounds.
 merge [FILE]   Merge another storage into this one.
-export [FILE]  Export changes to another storage.
 
 list REGEX   Search in names of entries for POSIX regex.
 new TYPE     Create new entry, types: phrase, asym, field, data
@@ -187,7 +186,7 @@ rounds, which is a surprisingly good estimate for my computer.
 The versions are indicated by the latest git tag. Major versions match
 the storage versions and are not backward compatible.
 
-* v2.1: Support sychronisation between multiple files.
+* v2.1: Support simple merging.
 * v2: Supports passphrases, key-pairs and binary data; appends random
   suffix to lockhash to change cipher on every write hiding small
   changes in plaintext.

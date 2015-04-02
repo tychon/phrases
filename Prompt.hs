@@ -150,8 +150,9 @@ prompthandle p@(Prompt path _ storage@(Storage (Just prop) _ _)) ["iterations"] 
               putStrLn "Not a number."
               return p
 
-
 prompthandle p@(Prompt localpath _ storage) ["merge"] = do
+  putStrLn "Merge remote storage into local (this) storage."
+  putStrLn "Overwrites data in this file."
   putStr "Path to file to merge: "
   remotepath <- getPromptAns
   case remotepath of
@@ -163,11 +164,10 @@ prompthandle p@(Prompt localpath _ storage) ["merge"] = do
       res <- openWithLockhashRepeat remotepath lh
       case res of
         Nothing -> return p
-        Just storage -> do
-          undefined
-
-prompthandle p@(Prompt _ _ storage) ["export"] = do
-  undefined
+        Just remotestorage -> do
+          let storage' = merge remotestorage storage
+          save localpath storage'
+          return p{ info=NoPromptInfo, storage=storage' }
 
 
 prompthandle p@(Prompt _ _ storage) ["list"] = do
