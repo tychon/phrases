@@ -29,15 +29,15 @@ data StorageProps = StorageProps
     } deriving (Show, Read)
 
 data Storage = Storage
-    -- | The storage properties associated to this storage.
-    -- Set to Nothing when Storage is serialized.
     { props :: Maybe StorageProps
-    -- | The hashed passphrase to the container without the innersalt.
-    -- Derieved by running PBKDF2 on passphrase and salt.
+    -- ^ The storage properties associated to this storage.
     -- Set to Nothing when Storage is serialized.
     , lockhash :: Maybe ByteString
-    -- | The list of entries in the container.
+    -- ^ The hashed passphrase to the container without the innersalt.
+    -- Derieved by running PBKDF2 on passphrase and salt.
+    -- Set to Nothing when Storage is serialized.
     , entries :: [SEntry]
+    -- ^ The list of entries in the container.
     } deriving (Show, Read)
 
 data SEntry =
@@ -82,7 +82,9 @@ nullbytestring = BS8.singleton '\0'
 -- Returns a String with the length as specified in (pbkdf2_length props).
 getPBK :: StorageProps -> ByteString -> ByteString
 getPBK StorageProps{..} passphrase =
-  BS8.pack $ sha512PBKDF2 (BS8.unpack passphrase) (BS8.unpack salt) pbkdf2_rounds pbkdf2_length
+  BS8.pack $ sha512PBKDF2 (BS8.unpack passphrase)
+                          (BS8.unpack salt)
+                          pbkdf2_rounds pbkdf2_length
 
 -- | Initializes a DRBG from the given seed.
 getDRBG :: ByteString -> HmacDRBG
@@ -130,8 +132,8 @@ readProps fcontent =
 -- Returns lockhash and result of decryptWithLockhash.
 decrypt :: StorageProps
         -> ByteString
-	-> ByteString
-	-> (ByteString, Maybe (ByteString, ByteString))
+        -> ByteString
+        -> (ByteString, Maybe (ByteString, ByteString))
 decrypt props passphrase encrypted =
   let lockhash = (getPBK props passphrase)
   in (lockhash, decryptWithLockhash props lockhash encrypted)
@@ -184,8 +186,9 @@ encrypt storage newinnersalt =
       cipherlen = (BS.length plaintext) + 2 * (BS.length texthash)
       (cipher, _) = throwLeft $ genBytes cipherlen gen
       -- put together full plaintext
-      fullplaintext = assert (BS.length texthash == 32) (BS.append texthash $ BS.append texthash plaintext)
+      fullplaintext = assert (BS.length texthash == 32)
+                             (BS.append texthash $ BS.append texthash plaintext)
       encrypted = BS.pack $ BS.zipWith xor fullplaintext cipher
-      container = BS.append (BS8.pack $ show sprops) $ BS.append nullbytestring encrypted
+      container = BS.append (BS8.pack $ show sprops)
+                  $ BS.append nullbytestring encrypted
   in container
-

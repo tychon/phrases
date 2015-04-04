@@ -266,7 +266,8 @@ openPrepare path = do
         Just props -> do
           if not $ checkStorageProps props
             then do
-              putStrLn "WARNING: The standard property requirements are not met."
+              putStrLn "WARNING: The standard property requirements\
+                        \are not met."
               putStrLn "WARNING: The storage is most probably unsafe."
             else return ()
           if (version props) /= currentversion
@@ -276,7 +277,7 @@ openPrepare path = do
               putStrLn "The version of remote storage is not supported."
               return Nothing
             else
-	      return $ Just (props, fcontent')
+              return $ Just (props, fcontent')
 
 -- | Try to open storagen with given lockhash.
 openFinalize :: StorageProps
@@ -363,50 +364,83 @@ resalt passphrase storage = do
   salt <- genRandomness $ salt_length oldprops
   let props' = oldprops { salt=salt }
       !newlockhash = getPBK props' (BS8.pack passphrase)
-  return Storage{ props=Just props', lockhash=Just newlockhash, entries=entries storage }
+  return Storage{ props=Just props'
+                , lockhash=Just newlockhash
+                , entries=entries storage
+                }
 
 
-merge :: Storage -> Storage -> Storage
+data DiffResult = NameConflict | NoMatch | Unchanged | Match SEntry String
+
+merge :: Storage -> Storage -> IO Storage
 merge source dest = do
-  undefined -- TODO
+  let (conflicts, new, changed, deleted) = diff (entries source) (entries dest)
+      lengths = [length conflicts, length new, length changed, length deleted]
+  putStrLn . unwords $ zipWith (++)
+                     ["Conflicts: ", " New: ", " Changed: ", " Deleted: "]
+                     (map show lengths)
+  if sum lengths == 0
+  then do
+      putStrLn "No difference."
+      return dest
+  else do
+    if not $ null conflicts
+    then do
+      putStrLn "Conflicting names:"
+      putStrLn . indent 3 $ map name conflicts
+      putStrLn "Resolve conflicts first!"
+      return dest
+    else do
+      -- TODO
+      return dest
 
-{-
-diff :: [SEntry] -- source
-     -> [SEntry] -- destination
-     -- (name-conflicts, new, changed, deleted)
-     -> ([SEntry], [SEntry], [SEntry], [SEntry])
+diff :: [SEntry] -- ^ list of elements in source storage
+     -> [SEntry] -- ^ list of elements in destination storage
+     -> ([SEntry], [SEntry], [DiffResult], [SEntry])
+     -- ^ Diffs sorted by (name-conflicts, new, changed, deleted) entries.
+     -- The 'DiffResult' s only contain Matches.
 diff [] dest = ([], [], [], dest)
 diff source [] = ([], source, [], [])
 diff (s:source) dest =
-  undefined
+    case res of
+      NameConflict -> (s:conflicts, new, changed, deleted)
+      NoMatch -> (conflicts, s:new, changed, deleted)
+      Unchanged -> (conflicts, new, changed, deleted)
+      res -> (conflicts, new, res:changed, deleted)
+  where (remaining, res) = diffConsumeElem s dest
+        (conflicts, new, changed, deleted) = diff source remaining
 
-data DiffResult = NameConflict | NoMatch | Match String SEntry
-
-diffConsumeElem :: SEntry   -- the source element to search for
-                -> [SEntry] -- the dest list to search in
-                   -- TODO
-                -> ([SEntry], Either String (SEntry, String))
-diffConsumeElem s [] = Nothing
+-- | Find the corresponding element for source in dest and compare
+diffConsumeElem :: SEntry   -- ^ the source element to search for
+                -> [SEntry] -- ^ the dest list to search in
+                -- ^ the list of remaining elements and the diff result
+                -> ([SEntry], DiffResult)
+diffConsumeElem s [] = ([], NoMatch)
 diffConsumeElem s (d:dest) =
-  if name s == name d
-    then
-      case (s, d) of
-        (Phrase sn sc sp, Phrase _ dc dp) ->
-          let hint = ((if sc /= dc then "comment changed; " else "")
-                     ++ (if sp /= dp then "phrase changed;" else ""))
-          in Right (s, hint)
-	-- TODO other types
-	(s, d) -> Left (name s) -- s and d are of different type
-    else diffConsumeElem s dest
+    case diffCompareElem s d of
+      NoMatch ->
+          let (remaining, res) = diffConsumeElem s dest
+          in (d:remaining, res)
+      res -> (dest, res)
 
-diffCompareElem :: SEntry -> SEntry -> DiffResult
+-- | Compare one storage element to another.
+diffCompareElem :: SEntry     -- ^ source element
+                -> SEntry     -- ^ dest element
+                -> DiffResult -- ^ the result containing source on match
 diffCompareElem s@Phrase{} d@Phrase{}
     | (name s /= name d) = NoMatch
-    | otherwise          = 
+    | otherwise          =
+        let hint = ((if comment s /= comment d
+                     then "comment changed; " else "")
+                 ++ (if phrase s /= phrase d
+                     then "phrase changed;" else ""))
+        in if null hint
+           then Unchanged
+           else Match s hint
 diffCompareElem s d
     | (name s == name d) = NameConflict
     | otherwise          = NoMatch
--}
+
 
 -- | Sets the new number of PBKDF2 rounds and recalcs lockhash.  Needs
 -- the plaintext passphrase to rerun PBKDF2. May take some strict
@@ -536,4 +570,3 @@ setField content field storage =
           newstorage = replaceEntry newentry storage
       putStrLn "New field data set."
       return (newentry, newstorage)
-

@@ -1,4 +1,3 @@
-
 module Prompt (prompt) where
 
 import System.Exit ( exitSuccess, exitFailure )
@@ -97,7 +96,7 @@ prompthandle p@(Prompt path _ storage) ["change-lock"] = do
       invalidinput e "Passphrase not changed."
       return p
     Right passphrase -> do
-      putStrLn "\nAnd again: "
+      putStrLn "\nAnd repeat: "
       maybeagain <- getPassphrase
       case maybeagain of
         Left e -> do
@@ -128,12 +127,14 @@ prompthandle p@(Prompt path _ storage) ["resalt"] = do
       putStrLn "Salt changed."
       return p { storage=newstorage }
 
-prompthandle p@(Prompt path _ storage@(Storage (Just prop) _ _)) ["iterations"] = do
+prompthandle p@(Prompt path _ storage@(Storage (Just prop) _ _))
+             ["iterations"] = do
   passphrase <- rememberPassphrase storage
   case passphrase of
     Nothing -> return p
     Just passphrase -> do
-      putStrLn $ "Current number of iterations: " ++ (show . pbkdf2_rounds $ prop)
+      putStrLn $ "Current number of iterations: "
+                   ++ (show . pbkdf2_rounds $ prop)
       putStr "Enter the number of iterations for PBDKF2: "
       ans <- getPromptAns
       case ans of
@@ -165,7 +166,7 @@ prompthandle p@(Prompt localpath _ storage) ["merge"] = do
       case res of
         Nothing -> return p
         Just remotestorage -> do
-          let storage' = merge remotestorage storage
+          storage' <- merge remotestorage storage
           save localpath storage'
           return p{ info=NoPromptInfo, storage=storage' }
 
@@ -296,8 +297,8 @@ prompthandle p@(Prompt path (PromptEntry entry) storage) ("delete":[]) = do
   let oldname = (name entry)
       newlist = deleteEntry entry (entries storage)
       newstorage = storage{ entries=newlist }
-  save path newstorage
   putStrLn $ "Deleted: " ++ oldname
+  save path newstorage
   return p{ info=NoPromptInfo, storage=newstorage }
 
 
