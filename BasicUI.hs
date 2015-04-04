@@ -86,6 +86,13 @@ initStdStorage passphrase = do
   return Storage { props=Just props', lockhash=Just lockhash, entries=[] }
 
 
+-- | Add indent of length cols to every line and unline all.
+indent :: Int -> [String] -> String
+indent cols lines =
+    unlines $ zipWith (++) (take (length lines) $ repeat ind) lines
+  where ind = take cols $ repeat ' '
+
+
 -- | Helper function for getFullPath, replaces leading tilde by homePath.
 -- <http://stackoverflow.com/questions/18610313/haskell-join-gethomedirectory-string>
 fullPath :: String -> String -> String

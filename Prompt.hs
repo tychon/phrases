@@ -306,6 +306,20 @@ prompthandle p@(Prompt path (PromptEntry entry) storage) ("delete":[]) = do
 
 prompthandle p ("cb":[]) =
   prompthandle p ["clipboard"]
+
+prompthandle p@(Prompt path (PromptEntry phrase) storage) ("phrase":[]) = do
+  passwd <- getPassphrase
+  case passwd of
+    Left e -> do
+      invalidinput e ""
+      return p
+    Right passwd -> do
+      let newentry = phrase{ phrase=passwd }
+          newstorage = replaceEntry newentry storage
+      putStrLn "Phrase changed."
+      save path newstorage
+      return p { info=(PromptEntry newentry), storage=newstorage }
+
 prompthandle p@(Prompt _ (PromptEntry (Phrase _ _ pw)) _) ("clipboard":[]) = do
   setClipboard pw
   putStrLn "Password put into clipboard."
