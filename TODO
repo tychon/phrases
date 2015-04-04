@@ -1,0 +1,5 @@
+
+* Use sets for entries
+* New type Entry with name and comment having
+  Phrase, Asym or Field as field
+* setup cabal

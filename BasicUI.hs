@@ -1,4 +1,3 @@
-
 module BasicUI where
 
 import System.Exit
@@ -87,8 +86,8 @@ initStdStorage passphrase = do
   return Storage { props=Just props', lockhash=Just lockhash, entries=[] }
 
 
--- http://stackoverflow.com/questions/18610313/haskell-join-gethomedirectory-string
 -- | Helper function for getFullPath, replaces leading tilde by homePath.
+-- <http://stackoverflow.com/questions/18610313/haskell-join-gethomedirectory-string>
 fullPath :: String -> String -> String
 fullPath homePath s
   | "~" `isPrefixOf` s = homePath ++ (tail s)
@@ -364,14 +363,22 @@ merge :: Storage -> Storage -> Storage
 merge source dest = do
   undefined -- TODO
 
+{-
 diff :: [SEntry] -- source
      -> [SEntry] -- destination
-     -> ([SEntry], [SEntry], [SEntry]) -- (new, changed, deleted)
-diff [] dest = ([], [], dest)
+     -- (name-conflicts, new, changed, deleted)
+     -> ([SEntry], [SEntry], [SEntry], [SEntry])
+diff [] dest = ([], [], [], dest)
+diff source [] = ([], source, [], [])
 diff (s:source) dest =
   undefined
 
-diffConsumeElem :: SEntry -> [SEntry] -> Either String (SEntry, String)
+data DiffResult = NameConflict | NoMatch | Match String SEntry
+
+diffConsumeElem :: SEntry   -- the source element to search for
+                -> [SEntry] -- the dest list to search in
+                   -- TODO
+                -> ([SEntry], Either String (SEntry, String))
 diffConsumeElem s [] = Nothing
 diffConsumeElem s (d:dest) =
   if name s == name d
@@ -379,15 +386,24 @@ diffConsumeElem s (d:dest) =
       case (s, d) of
         (Phrase sn sc sp, Phrase _ dc dp) ->
           let hint = ((if sc /= dc then "comment changed; " else "")
-                     ++ (if sp /= dp then "phrase changed;" else "")
+                     ++ (if sp /= dp then "phrase changed;" else ""))
           in Right (s, hint)
 	-- TODO other types
 	(s, d) -> Left (name s) -- s and d are of different type
     else diffConsumeElem s dest
 
+diffCompareElem :: SEntry -> SEntry -> DiffResult
+diffCompareElem s@Phrase{} d@Phrase{}
+    | (name s /= name d) = NoMatch
+    | otherwise          = 
+diffCompareElem s d
+    | (name s == name d) = NameConflict
+    | otherwise          = NoMatch
+-}
 
--- | Sets the new number of PBKDF2 rounds and recalcs lockhash.
--- Needs the plaintext passphrase to rerun PBKDF2. May take some strict seconds.
+-- | Sets the new number of PBKDF2 rounds and recalcs lockhash.  Needs
+-- the plaintext passphrase to rerun PBKDF2. May take some strict
+-- seconds.
 changePBKDF2Rounds :: Int -> String -> Storage -> Storage
 changePBKDF2Rounds rounds passphrase storage@(Storage (Just prop) _ _) =
   let prop' = prop{ pbkdf2_rounds=rounds }
@@ -411,21 +427,21 @@ filterEntries regex entries =
 doesNameExist :: String -> [SEntry] -> Bool
 doesNameExist searchname [] = False
 doesNameExist searchname (entry:entries)
-  | searchname == (name entry) = True
-  | otherwise                  = doesNameExist searchname entries
+    | searchname == (name entry) = True
+    | otherwise                  = doesNameExist searchname entries
 
 -- | Ask the user for a name and check if its valid and unique.
 -- Returns Just name if everything worked out, Nothing otherwise.
 getUniqueName :: [SEntry] -> IO (Maybe String)
 getUniqueName existing = do
-  putStr "Name: "
-  ans <- getPromptAns
-  case ans of
-    Left e -> invalidinput e "" >> return Nothing
-    Right name -> do
-      if doesNameExist name existing
-        then putStrLn "Name already assigned." >> return Nothing
-        else return $ Just name
+    putStr "Name: "
+    ans <- getPromptAns
+    case ans of
+        Left e -> invalidinput e "" >> return Nothing
+        Right name -> do
+            if doesNameExist name existing
+            then putStrLn "Name already assigned." >> return Nothing
+            else return $ Just name
 
 -- | Add an entry at the right place to maintain lexicographic order.
 addEntry :: SEntry -> [SEntry] -> [SEntry]

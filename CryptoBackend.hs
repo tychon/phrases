@@ -1,4 +1,3 @@
-
 module CryptoBackend where
 
 import Control.Exception ( assert )
@@ -16,30 +15,30 @@ import Data.Bits ( xor )
 
 currentversion = 2 :: Int
 
--- storage type
-data StorageProps = StorageProps {
-  version
-    -- The version of the storage file.
-    -- Only version 1 has no StorateProps field.
-, salt_length
-, innersalt_length
-, pbkdf2_rounds
-, pbkdf2_length :: Int
-, salt
-, innersalt :: ByteString
-} deriving (Show, Read)
+-- | Holds properties of the storage important for en- and decryption.
+-- It is saved unencrypted in front of ciphertext.  Only version 1
+-- storage has no storage properties field.
+data StorageProps = StorageProps
+    { version :: Int          -- ^ The numerical version of the storage
+    , salt_length :: Int      -- ^ The length of the permanent salt in bytes
+    , innersalt_length :: Int -- ^ The length of the innersalt in bytes
+    , pbkdf2_rounds :: Int    -- ^ The number of iterations in PBKDF2
+    , pbkdf2_length :: Int    -- ^ The length of the generated key in bytes
+    , salt :: ByteString      -- ^ The permanent salt
+    , innersalt :: ByteString -- ^ The inner salt
+    } deriving (Show, Read)
 
-data Storage = Storage {
-  props :: Maybe StorageProps
-    -- The storage properties associated to this storage.
+data Storage = Storage
+    -- | The storage properties associated to this storage.
     -- Set to Nothing when Storage is serialized.
-, lockhash :: Maybe ByteString
-    -- The hashed passphrase to the container without the innersalt.
+    { props :: Maybe StorageProps
+    -- | The hashed passphrase to the container without the innersalt.
     -- Derieved by running PBKDF2 on passphrase and salt.
     -- Set to Nothing when Storage is serialized.
-, entries :: [SEntry]
-    -- The list of entries in the container.
-} deriving (Show, Read)
+    , lockhash :: Maybe ByteString
+    -- | The list of entries in the container.
+    , entries :: [SEntry]
+    } deriving (Show, Read)
 
 data SEntry =
     Phrase { -- for simple passwords
@@ -144,8 +143,8 @@ decrypt props passphrase encrypted =
 -- props and lockhash in the parsed storage.
 decryptWithLockhash :: StorageProps
                     -> ByteString
-		    -> ByteString
-		    -> Maybe (ByteString, ByteString)
+                    -> ByteString
+                    -> Maybe (ByteString, ByteString)
 decryptWithLockhash props lockhash encrypted =
   let gen = getDRBG $ BS.append lockhash (innersalt props)
       (cipher, _) = throwLeft $ genBytes (BS.length encrypted) gen

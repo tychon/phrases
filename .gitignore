@@ -1,8 +1,9 @@
 *.hi
 *.o
 *~
-
 embedded-*
+
+haddock/
 
 phrases
 test
