@@ -4,6 +4,7 @@ import System.Exit
 import System.IO
 import System.IO.Error ( isEOFError, isPermissionError )
 import System.Directory ( getHomeDirectory, doesFileExist )
+import System.Console.ANSI( clearScreen )
 import Control.Exception ( Exception, SomeException, catch, try, tryJust )
 import Control.Monad ( guard )
 import Data.Maybe ( fromJust )
@@ -381,8 +382,8 @@ merge source dest = do
                      (map show lengths)
   if sum lengths == 0
   then do
-      putStrLn "No difference."
-      return dest
+    putStrLn "No difference."
+    return dest
   else do
     if not $ null conflicts
     then do
@@ -391,8 +392,48 @@ merge source dest = do
       putStrLn "Resolve conflicts first!"
       return dest
     else do
-      -- TODO
-      return dest
+      dest' <- mergeDeleted deleted dest
+      case dest' of
+        Nothing -> do
+          putStrLn "Aborted. No changes made."
+          return dest
+        Just dest' -> do
+          return dest'
+
+mergeDeleted :: [SEntry] -> Storage -> IO (Maybe Storage)
+mergeDeleted [] storage = return $ Just storage
+mergeDeleted (entry:es) storage = do
+  putStr $ "Delete " ++ (name entry) ++ " (yes/no/plain/cancel): "
+  ans <- getPromptAns
+  case ans of
+    Left e -> do
+      invalidinput e "Enter yes / no / plain or cancel."
+      mergeDeleted (es) storage
+    Right ans -> do
+      case ans of
+        "yes" -> do
+          let storage' = storage{ entries=deleteEntry entry (entries storage) }
+          mergeDeleted es storage'
+        "no" -> do
+          mergeDeleted es storage
+        "plain" -> do
+          clearScreen
+          putStrLn $ display entry
+          putStrLn "Press ENTER to continue."
+          getPromptAns
+          clearScreen
+          mergeDeleted (entry:es) storage
+        "cancel" -> do
+          return Nothing
+        _ -> do
+          putStrLn "Enter yes / no / plain or cancel."
+          mergeDeleted (entry:es) storage
+
+doMerge new changed deleted dest = do
+  undefined
+
+mergeOneChanged entry = do
+  undefined
 
 diff :: [SEntry] -- ^ list of elements in source storage
      -> [SEntry] -- ^ list of elements in destination storage
