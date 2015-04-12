@@ -3,6 +3,7 @@ module CryptoBackend where
 import Control.Exception ( assert )
 import Data.Maybe ( fromJust )
 import Numeric ( showHex )
+import Data.Char ( isAscii )
 import Data.ByteString ( ByteString )
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS8
@@ -73,6 +74,37 @@ instance Ord SEntry where
   Field n1 _ _ <= Field n2 _ _ = n1 <= n2
   Field{}    <= _          = False
 
+class Display a where
+    display :: a -> String
+
+_basicName entry =
+  "Name: " ++ (name entry) ++ "\n\
+  \Comment: " ++ (comment entry)
+
+isFieldPrintable :: ByteString -> Bool
+isFieldPrintable field =
+  BS8.foldl' (\prev ch -> prev && isAscii ch && ch /= '\ESC') True field
+
+instance Display SEntry where
+    display entry@(Phrase{}) =
+        (_basicName entry) ++ "\nPhrase: " ++ (phrase entry)
+    display entry@(Asym{}) =
+        (_basicName entry)
+          ++ "\nFingerprint: " ++ (fingerprint entry)
+          ++ "\nPublic key:\n" ++ (public entry)
+          ++ "\n\nPrivate key: [" ++ (show $ length (private entry))
+          ++ " characters] use 'putpriv' to display here."
+    display entry@(Field{}) =
+        (_basicName entry) ++
+          if BS.null (field entry)
+          then "Empty."
+          else
+              if isFieldPrintable (field entry)
+              then do
+                "Content:\n" ++ (BS8.unpack $ field entry)
+              else
+                "Can not show you content since \
+                \it contains non-printable characters."
 
 -- | Simply creates a ByteString containing one NUL character.
 nullbytestring :: ByteString

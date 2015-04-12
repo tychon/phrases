@@ -557,10 +557,6 @@ setAsymPriv content asym storage =
       putStrLn "New private key set."
       return (newentry, newstorage)
 
-isFieldPrintable :: ByteString -> Bool
-isFieldPrintable field =
-  BS8.foldl' (\prev ch -> prev && isAscii ch && ch /= '\ESC') True field
-
 setField :: Maybe ByteString -> SEntry -> Storage -> IO (SEntry, Storage)
 setField content field storage =
   case content of

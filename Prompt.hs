@@ -236,29 +236,7 @@ prompthandle p@(Prompt path _ storage) ("new":typename:[])
 
 -- | Print some information about the currently selected entry.
 prompthandle p@(Prompt _ (PromptEntry entry) _) ("plain":[]) = do
-  putStrLn $ "Name: " ++ (name entry)
-  putStrLn $ "Comment: " ++ (comment entry)
-  case entry of
-    Phrase _ _ phrase -> do
-      putStrLn $ "Phrase: " ++ phrase
-      putStrLn "Type newline/ENTER to clear screen."
-    Asym _ _ fprint pub priv -> do
-      putStrLn $ "Fingerprint: " ++ fprint
-      putStrLn $ "Public key:\n" ++ pub
-      putStrLn ""
-      putStrLn $ "Private key: [" ++ (show $ length priv) ++ " characters]\
-                 \ use 'putpriv' to display here."
-    Field _ _ field ->
-      if BS.null field
-        then putStrLn "Empty."
-        else
-          if isFieldPrintable field
-            then do
-              putStrLn "Content:\n"
-              putStrLn $ BS8.unpack field
-            else
-              putStrLn "Can not show you content since \
-                        \it contains non-printable characters."
+  putStrLn $ display entry
   return p
 
 prompthandle p@(Prompt path (PromptEntry entry) storage) ("rename":[]) = do
