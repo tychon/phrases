@@ -1,6 +1,7 @@
 *.hi
 *.o
 *~
+*[#]*
 embedded-*
 
 haddock/
