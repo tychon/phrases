@@ -1,4 +1,6 @@
 
+* nicer console input allowing backspace (haskeline)
+* Don't support migration ?
 * Use sets for entries
 * New type Entry with name and comment having
   Phrase, Asym or Field as field
